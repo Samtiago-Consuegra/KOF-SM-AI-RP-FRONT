@@ -7,13 +7,16 @@ import MachineFilter from '../components/ui/MachineFilter.jsx'
 import PeriodFilter from '../components/ui/PeriodFilter.jsx'
 import StatCard from '../components/ui/StatCard.jsx'
 import Card from '../components/ui/Card.jsx'
-import EnergyChart from '../components/charts/EnergyChart.jsx'
-import VibrationChart from '../components/charts/VibrationChart.jsx'
-import CorrelationMatrix from '../components/charts/CorrelationMatrix.jsx'
-import ScatterAnomalies from '../components/charts/ScatterAnomalies.jsx'
-import DowntimeChart from '../components/charts/DowntimeChart.jsx'
+import ParosPorEquipoChart from '../components/charts/ParosPorEquipoChart.jsx'
+import MinutosPorEquipoChart from '../components/charts/MinutosPorEquipoChart.jsx'
+import TopFallasChart from '../components/charts/TopFallasChart.jsx'
+import DuracionPromedioChart from '../components/charts/DuracionPromedioChart.jsx'
+import EvolucionMensualChart from '../components/charts/EvolucionMensualChart.jsx'
+import ParosPorTurnoChart from '../components/charts/ParosPorTurnoChart.jsx'
+import MinutosVsEficienciaChart from '../components/charts/MinutosVsEficienciaChart.jsx'
+import MtbfTable from '../components/charts/MtbfTable.jsx'
 import { CRITICAL_IDS, getMachine, resolveMachineFilter } from '../data/machines.js'
-import { fileNameFor, getCorrelation, getEnergy, getScatter, getStops, getVibrationHistogram } from '../data/telemetry.js'
+import { fileNameFor, getStops } from '../data/telemetry.js'
 import { MAINTENANCE_PLANS, RISK_LEVELS, getPredictions } from '../data/predictions.js'
 import { fmtDateShort, fmtNumber, fromISODate, startOfDay } from '../utils/format.js'
 import { defaultTimeRange, maxISODate, minISODate, resolveTimeRange } from '../utils/period.js'
@@ -37,8 +40,6 @@ export default function Dashboard() {
     [range],
   ) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const seedKey = `${rangeKey}-${refreshKey}`
-
   const stats = useMemo(() => {
     const inRange = stops.filter((s) => ids.includes(s.machineId) && list.includes(s.date))
     const prevCount = stops.filter((s) => ids.includes(s.machineId) && prev.includes(s.date)).length
@@ -56,15 +57,8 @@ export default function Dashboard() {
       return { label: fmtDateShort(fromISODate(iso)).replace(/ de \d{4}|\s\d{4}/, ''), minutes: day.reduce((a, s) => a + s.minutes, 0), stops: day.length }
     })
     const delta = prevCount ? Math.round(((inRange.length - prevCount) / prevCount) * 100) : 0
-    return { count: inRange.length, minutes, mtbf, critCount: critSel.length, byDay, delta }
+    return { count: inRange.length, minutes, mtbf, critCount: critSel.length, byDay, delta, inRange }
   }, [stops, ids.join(), list, prev, days]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const charts = useMemo(() => ({
-    energy: getEnergy(ids, seedKey),
-    hist: getVibrationHistogram(ids, seedKey),
-    scatter: getScatter(ids, seedKey),
-    corr: getCorrelation(`${machineFilter}-${seedKey}`),
-  }), [ids.join(), seedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const predictions = useMemo(
     () => getPredictions({ mode, seed: rangeKey, days, end }).filter((p) => ids.includes(p.id)),
@@ -173,11 +167,14 @@ export default function Dashboard() {
       {/* Gráficas + columna lateral */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] items-start">
         <div className="grid gap-4 md:grid-cols-2">
-          <EnergyChart data={charts.energy} />
-          <VibrationChart hist={charts.hist} />
-          <CorrelationMatrix matrix={charts.corr} />
-          <ScatterAnomalies data={charts.scatter} />
-          <DowntimeChart data={stats.byDay} periodLabel={periodLabel} className="md:col-span-2" />
+          <ParosPorEquipoChart stops={stats.inRange} periodLabel={periodLabel} />
+          <MinutosPorEquipoChart stops={stats.inRange} />
+          <TopFallasChart stops={stats.inRange} />
+          <DuracionPromedioChart stops={stats.inRange} />
+          <EvolucionMensualChart stops={stats.inRange} className="md:col-span-2" />
+          <ParosPorTurnoChart stops={stats.inRange} />
+          <MinutosVsEficienciaChart stops={stats.inRange} />
+          <MtbfTable stops={stats.inRange} days={days} className="md:col-span-2" />
         </div>
 
         <aside className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 xl:sticky xl:top-24">
