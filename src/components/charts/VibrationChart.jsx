@@ -18,23 +18,21 @@ export default function VibrationChart({ hist }) {
         <span className="font-semibold text-primary-600">Asimetría: {hist.skew >= 0 ? '+' : ''}{fmtNumber(hist.skew, 2)}</span>
       </>}
     >
-      <div className="h-64">
-        <ResponsiveContainer>
-          <ComposedChart data={hist.bins} barCategoryGap={2} margin={{ top: 18, right: 4, left: -18, bottom: 0 }}>
-            <XAxis dataKey="bin" {...axisProps} interval={1} />
-            <YAxis {...axisProps} />
-            <Tooltip cursor={{ fill: '#f8f9fa' }} content={<TooltipBox formatter={(p) => p.dataKey === 'count' ? `Lecturas: ${p.value}` : `Curva: ${p.value}`} />} labelFormatter={(l) => `${l} mm/s`} />
-            <Bar dataKey="count" radius={[3, 3, 0, 0]}>
-              {hist.bins.map((b) => (
-                <Cell key={b.bin} fill={b.over ? C.red : b.count === peakCount ? C.ink : C.ink200} />
-              ))}
-            </Bar>
-            <Line type="monotone" dataKey="curve" stroke={C.ink} strokeWidth={2} dot={false} />
-            <ReferenceLine x={VIBRATION_LIMIT.toFixed(1)} stroke={C.red} strokeDasharray="4 3"
-              label={{ value: `Umbral ${VIBRATION_LIMIT} mm/s`, position: 'insideTopRight', fill: C.red, fontSize: 10 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+      <ResponsiveContainer>
+        <ComposedChart data={hist.bins} barCategoryGap={2} margin={{ top: 18, right: 4, left: -18, bottom: 0 }}>
+          <XAxis dataKey="bin" {...axisProps} interval={1} />
+          <YAxis {...axisProps} />
+          <Tooltip cursor={{ fill: '#f8f9fa' }} content={<TooltipBox formatter={(p) => p.dataKey === 'count' ? `Lecturas: ${p.value}` : `Curva: ${p.value}`} />} labelFormatter={(l) => `${l} mm/s`} />
+          <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+            {hist.bins.map((b) => (
+              <Cell key={b.bin} fill={b.over ? C.red : b.count === peakCount ? C.ink : C.ink200} />
+            ))}
+          </Bar>
+          <Line type="monotone" dataKey="curve" stroke={C.ink} strokeWidth={2} dot={false} />
+          <ReferenceLine x={VIBRATION_LIMIT.toFixed(1)} stroke={C.red} strokeDasharray="4 3"
+            label={{ value: `Umbral ${VIBRATION_LIMIT} mm/s`, position: 'insideTopRight', fill: C.red, fontSize: 10 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }

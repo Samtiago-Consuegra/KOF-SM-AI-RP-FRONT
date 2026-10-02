@@ -1,13 +1,14 @@
 import Dropdown from './Dropdown.jsx'
 import { MACHINE_FILTER_OPTIONS } from '../../data/machines.js'
 
-export default function MachineFilter({ value, onChange, label, className }) {
+export default function MachineFilter({ value, onChange, label, className, options = MACHINE_FILTER_OPTIONS, variant = 'default' }) {
   return (
     <Dropdown
       label={label}
+      variant={variant}
       value={value}
       onChange={onChange}
-      options={MACHINE_FILTER_OPTIONS}
+      options={options}
       className={className}
       renderValue={(o) => (
         <span className="flex items-center gap-2">

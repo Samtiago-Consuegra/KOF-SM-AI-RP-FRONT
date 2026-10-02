@@ -1,11 +1,17 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 
+// Estilos del botón según el contexto (barra de filtros, formularios)
+const BUTTON_VARIANTS = {
+  default: 'border border-neutral-200 bg-neutral-50 hover:bg-white px-3.5 py-2.5',
+  toolbar: 'h-10 border border-neutral-200 bg-white hover:bg-neutral-100 px-3.5',
+}
+
 /**
  * Dropdown accesible con grupos opcionales.
  * options: [{ value, label, hint?, group?, dot? }]
  */
-export default function Dropdown({ label, value, onChange, options, className = '', renderValue }) {
+export default function Dropdown({ label, value, onChange, options, className = '', renderValue, variant = 'default' }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const id = useId()
@@ -31,7 +37,7 @@ export default function Dropdown({ label, value, onChange, options, className = 
         aria-expanded={open}
         aria-labelledby={label ? `${id}-l` : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 hover:bg-white px-3.5 py-2.5 text-sm text-left transition-colors"
+        className={`w-full flex items-center gap-2 rounded-xl text-sm text-left transition-colors ${BUTTON_VARIANTS[variant] ?? BUTTON_VARIANTS.default}`}
       >
         <span className="flex-1 truncate">{renderValue ? renderValue(current) : current?.label}</span>
         <ChevronDown className={`size-4 text-ink-400 transition-transform ${open ? 'rotate-180' : ''}`} />

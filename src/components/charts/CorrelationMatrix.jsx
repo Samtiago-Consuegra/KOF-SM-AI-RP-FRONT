@@ -17,6 +17,8 @@ export default function CorrelationMatrix({ matrix }) {
     <ChartCard
       title="Matriz de correlación de variables"
       subtitle="Coeficiente de Pearson (r) de las operaciones en línea"
+      bodyClassName="h-64 flex items-center"
+      modalBodyClassName="h-auto"
       legend={<span className="flex items-center gap-1.5">0.0
         <span className="h-2 w-16 rounded-full bg-gradient-to-r from-neutral-100 via-primary-300 to-primary-800" />1.0</span>}
       footer={<>
@@ -24,7 +26,7 @@ export default function CorrelationMatrix({ matrix }) {
         <span className="font-semibold text-primary-600">p &lt; 0.001</span>
       </>}
     >
-      <div className="overflow-x-auto scroll-thin">
+      <div className="overflow-x-auto scroll-thin w-full">
         <table className="w-full min-w-[300px] border-separate border-spacing-1 text-xs">
           <thead>
             <tr>

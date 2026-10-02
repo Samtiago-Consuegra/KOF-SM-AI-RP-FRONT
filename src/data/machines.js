@@ -36,3 +36,9 @@ export const MACHINE_FILTER_OPTIONS = [
   { value: 'todas', label: 'Todas las máquinas', hint: '17 equipos', group: 'Grupos' },
   ...MACHINES.map((m) => ({ value: m.id, label: m.name, hint: m.type, group: 'Máquinas individuales' })),
 ]
+
+// Solo las 4 críticas: el grupo completo y cada máquina por separado
+export const CRITICAL_MACHINE_FILTER_OPTIONS = [
+  { value: 'criticas', label: '4 máquinas críticas', hint: 'Atención requerida', group: 'Grupo' },
+  ...MACHINES.filter((m) => m.critical).map((m) => ({ value: m.id, label: m.name, hint: m.type, group: 'Críticas por separado' })),
+]

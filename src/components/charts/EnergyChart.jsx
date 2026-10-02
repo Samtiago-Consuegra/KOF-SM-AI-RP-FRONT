@@ -16,20 +16,18 @@ export default function EnergyChart({ data }) {
         <span className="font-semibold text-primary-600">Pico: {peak.kwh} kWh</span>
       </>}
     >
-      <div className="h-64">
-        <ResponsiveContainer>
-          <BarChart data={data} barGap={4} margin={{ top: 18, right: 4, left: -18, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke={C.grid} />
-            <XAxis dataKey="id" {...axisProps} interval={data.length > 8 ? 1 : 0} />
-            <YAxis {...axisProps} />
-            <Tooltip cursor={{ fill: '#f8f9fa' }} content={<TooltipBox />} />
-            <Bar dataKey="kwh" name="Consumo (kWh)" fill={C.red} radius={[4, 4, 0, 0]} maxBarSize={28}>
-              {data.length <= 6 && <LabelList dataKey="kwh" position="top" fill={C.redDark} fontSize={10} formatter={(v) => `${v} kWh`} />}
-            </Bar>
-            <Bar dataKey="cycles" name="Ciclos/min" fill={C.ink} radius={[4, 4, 0, 0]} maxBarSize={28} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      <ResponsiveContainer>
+        <BarChart data={data} barGap={4} margin={{ top: 18, right: 4, left: -18, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke={C.grid} />
+          <XAxis dataKey="id" {...axisProps} interval={data.length > 8 ? 1 : 0} />
+          <YAxis {...axisProps} />
+          <Tooltip cursor={{ fill: '#f8f9fa' }} content={<TooltipBox />} />
+          <Bar dataKey="kwh" name="Consumo (kWh)" fill={C.red} radius={[4, 4, 0, 0]} maxBarSize={28}>
+            {data.length <= 6 && <LabelList dataKey="kwh" position="top" fill={C.redDark} fontSize={10} formatter={(v) => `${v} kWh`} />}
+          </Bar>
+          <Bar dataKey="cycles" name="Ciclos/min" fill={C.ink} radius={[4, 4, 0, 0]} maxBarSize={28} />
+        </BarChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }

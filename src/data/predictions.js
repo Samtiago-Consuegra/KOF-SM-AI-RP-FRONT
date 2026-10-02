@@ -1,4 +1,5 @@
 import { seeded } from '../utils/random.js'
+import { fromISODate } from '../utils/format.js'
 import { MACHINES } from './machines.js'
 
 export const RISK_LEVELS = {
@@ -21,26 +22,28 @@ const BASE = {
 
 const DEFAULT = { risk: 'bajo', variable: 'Amperaje motor', reading: 'Nominal', icon: 'bolt' }
 
-export const RANGE_OPTIONS = [
-  { value: '7d', label: 'Últimos 7 días', points: 7 },
-  { value: 'hoy', label: 'Día actual', points: 12 },
-  { value: 'mes', label: 'Mes anterior', points: 15 },
-]
+// Deriva de la probabilidad según el rango elegido
+const DRIFT = { hoy: 0.03, semana: 0, mes: -0.35 }
 
-// Genera la matriz predictiva para un rango temporal
-export function getPredictions(range = '7d', now = new Date()) {
-  const cfg = RANGE_OPTIONS.find((r) => r.value === range) ?? RANGE_OPTIONS[0]
+// Puntos de la serie temporal: el día actual se muestrea por hora, la semana por día
+export const predictionPoints = (mode, days) => {
+  if (mode === 'mes') return Math.max(2, Math.min(15, days))
+  return mode === 'semana' ? 7 : 12
+}
+
+// Genera la matriz predictiva para el rango de fechas resuelto (ver utils/period.js).
+// `end` admite un Date o un ISO ('YYYY-MM-DD').
+export function getPredictions({ mode = 'semana', seed = mode, days = 7, end = new Date(), now = new Date() } = {}) {
+  const points = predictionPoints(mode, days)
   return MACHINES.map((m, i) => {
-    const rand = seeded(`${m.id}-${range}`)
+    const rand = seeded(`${m.id}-${seed}`)
     const base = BASE[m.id] ?? { ...DEFAULT, prob: 6 + Math.round(rand() * 14), rul: 320 + Math.round(rand() * 200) }
 
-    // En el mes anterior la probabilidad era menor; en el día actual es la más reciente
-    const drift = range === 'mes' ? -0.35 : range === 'hoy' ? 0.03 : 0
-    const prob = Math.max(3, Math.min(99, Math.round(base.prob * (1 + drift))))
+    const prob = Math.max(3, Math.min(99, Math.round(base.prob * (1 + (DRIFT[mode] ?? 0)))))
     const rising = base.risk === 'critico' || base.risk === 'alto'
 
-    const trend = Array.from({ length: cfg.points }, (_, k) => {
-      const t = k / (cfg.points - 1)
+    const trend = Array.from({ length: points }, (_, k) => {
+      const t = k / (points - 1)
       const growth = rising ? Math.pow(t, 2.2) * prob * 0.45 : 0
       return { k, v: +(prob * 0.62 + growth + (rand() - 0.5) * prob * 0.1).toFixed(1) }
     })
@@ -48,9 +51,13 @@ export function getPredictions(range = '7d', now = new Date()) {
     const last = trend[trend.length - 1].v
     const trendPct = Math.round(((last - first) / first) * 100)
 
-    // Última lectura: siempre en el pasado respecto a "ahora"
-    let updated = new Date(now.getTime() - (5 + ((i * 37) % 180)) * 60000)
-    if (range === 'mes') { updated = new Date(now.getFullYear(), now.getMonth(), 0, 23, 40 - i) }
+    // Última lectura: dentro del rango escogido y siempre en el pasado respecto a "ahora"
+    const lastDay = end instanceof Date ? end : fromISODate(end)
+    const endDay = new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate())
+    let updated = mode === 'mes'
+      ? new Date(endDay.getFullYear(), endDay.getMonth(), endDay.getDate(), 23, 40 - i)
+      : new Date(now.getTime() - (5 + ((i * 37) % 180)) * 60000)
+    if (updated > now) updated = new Date(now.getTime() - 60000)
 
     return {
       ...m,

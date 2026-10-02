@@ -7,10 +7,12 @@ import StatCard from '../components/ui/StatCard.jsx'
 import Card from '../components/ui/Card.jsx'
 import Dropdown from '../components/ui/Dropdown.jsx'
 import MachineFilter from '../components/ui/MachineFilter.jsx'
+import PeriodFilter from '../components/ui/PeriodFilter.jsx'
 import Sparkline from '../components/ui/Sparkline.jsx'
-import { MACHINES, resolveMachineFilter } from '../data/machines.js'
-import { RANGE_OPTIONS, RISK_LEVELS, getPredictions } from '../data/predictions.js'
-import { downloadCSV, toISODate } from '../utils/format.js'
+import { CRITICAL_MACHINE_FILTER_OPTIONS, resolveMachineFilter } from '../data/machines.js'
+import { RISK_LEVELS, getPredictions } from '../data/predictions.js'
+import { downloadCSV, fromISODate, startOfDay, toISODate } from '../utils/format.js'
+import { defaultTimeRange, maxISODate, minISODate, resolveTimeRange, timeRangeKey } from '../utils/period.js'
 import { useToast } from '../context/ToastContext.jsx'
 
 const PAGE_SIZE = 5
@@ -22,22 +24,33 @@ const RISK_OPTIONS = [
   ...Object.entries(RISK_LEVELS).map(([value, r]) => ({ value, label: r.label, dot: r.dot })),
 ]
 
-const fmtUpdated = (date, range) => {
+const fmtUpdated = (date, resolved) => {
   const time = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
-  if (range === 'mes') return { main: date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), sub: time }
-  const isToday = date.toDateString() === new Date().toDateString()
-  return { main: `${isToday ? 'Hoy' : 'Ayer'}, ${time}`, sub: date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) }
+  if (!resolved.singleDay) {
+    return { main: date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), sub: time }
+  }
+  const day = fromISODate(resolved.list[0])
+  const stamp = day.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+  if (toISODate(day) === toISODate(new Date())) return { main: `Hoy, ${time}`, sub: stamp }
+  return { main: stamp, sub: day.toLocaleDateString('es-CO', { year: 'numeric' }) }
 }
 
 export default function Predicciones() {
   const toast = useToast()
   const [params, setParams] = useSearchParams()
-  const initialMachine = MACHINES.some((m) => m.id === params.get('maquina')) ? params.get('maquina') : 'criticas'
+  // Solo se aceptan máquinas críticas: el filtro no ofrece las demás
+  const requested = params.get('maquina')
+  const initialMachine = CRITICAL_MACHINE_FILTER_OPTIONS.some((o) => o.value === requested) ? requested : 'criticas'
+  const today = startOfDay(new Date())
 
   const [machineFilter, setMachineFilter] = useState(initialMachine)
   const [risk, setRisk] = useState('todos')
-  const [range, setRange] = useState('7d')
+  const [range, setRange] = useState(() => defaultTimeRange(today)) // por defecto, día actual
   const [page, setPage] = useState(1)
+
+  const rangeKey = timeRangeKey(range)
+  const resolved = useMemo(() => resolveTimeRange(range, today), [range]) // eslint-disable-line react-hooks/exhaustive-deps
+  const { mode, days, end, provisional, label: rangeLabel, seedKey } = resolved
 
   // Mantiene la URL sincronizada con el filtro de máquina (sirve para compartir el enlace)
   useEffect(() => {
@@ -46,9 +59,9 @@ export default function Predicciones() {
     setParams(params, { replace: true })
   }, [machineFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => setPage(1), [machineFilter, risk, range])
+  useEffect(() => setPage(1), [machineFilter, risk, rangeKey])
 
-  const all = useMemo(() => getPredictions(range), [range])
+  const all = useMemo(() => getPredictions({ mode, seed: seedKey, days, end }), [mode, seedKey, days, end])
   const counts = useMemo(() => ({
     total: all.length,
     critico: all.filter((p) => p.risk === 'critico').length,
@@ -68,9 +81,9 @@ export default function Predicciones() {
   
   const exportCSV = () => {
     if (!rows.length) return toast('No hay filas para descargar con estos filtros.', 'error')
-    downloadCSV(`matriz_predictiva_${range}_${toISODate(new Date())}.csv`, [
-      ['Máquina', 'Tipo', 'Nivel de riesgo', 'Probabilidad (%)', 'RUL (h)', 'Variable crítica', 'Tendencia (%)', 'Última actualización'],
-      ...rows.map((r) => [r.name, r.type, RISK_LEVELS[r.risk].label, r.probability, r.rul, r.variable, r.trendPct, r.updatedAt.toLocaleString('es-CO')]),
+    downloadCSV(`matriz_predictiva_${mode}_${toISODate(new Date())}.csv`, [
+      ['Máquina', 'Tipo', 'Nivel de riesgo', 'Probabilidad (%)', 'RUL (h)', 'Variable crítica', 'Tendencia (%)', 'Última actualización', 'IPM'],
+      ...rows.map((r) => [r.name, r.type, RISK_LEVELS[r.risk].label, r.probability, r.rul, r.variable, r.trendPct, r.updatedAt.toLocaleString('es-CO'), '']),
     ])
     toast(`Matriz descargada (${rows.length} máquinas)`)
   }
@@ -96,11 +109,38 @@ export default function Predicciones() {
         <StatCard label="Riesgo normal / bajo" value={counts.bajo} icon={ShieldCheck} tone="teal" caption="Operación normal" />
       </div>
 
-      <Card className="p-4 grid gap-4 md:grid-cols-3">
-        <MachineFilter label="Máquina" value={machineFilter} onChange={setMachineFilter} />
-        <Dropdown label="Nivel de riesgo" value={risk} onChange={setRisk} options={RISK_OPTIONS} />
-        <Dropdown label="Rango temporal" value={range} onChange={setRange} options={RANGE_OPTIONS} />
+      <Card className="p-4 flex flex-wrap items-end gap-x-4 gap-y-3">
+        <MachineFilter
+          label="Máquina"
+          variant="toolbar"
+          options={CRITICAL_MACHINE_FILTER_OPTIONS}
+          value={machineFilter}
+          onChange={setMachineFilter}
+          className="w-full sm:w-64 lg:flex-1 lg:max-w-sm"
+        />
+        <Dropdown
+          label="Nivel de riesgo"
+          variant="toolbar"
+          value={risk}
+          onChange={setRisk}
+          options={RISK_OPTIONS}
+          className="w-full sm:w-44"
+        />
+        <PeriodFilter
+          value={range}
+          onChange={setRange}
+          min={minISODate(today)}
+          max={maxISODate(today)}
+          className="w-full xl:w-auto"
+        />
       </Card>
+
+      {provisional && (
+        <p className="-mt-3 flex items-center gap-2 text-xs text-amber-700">
+          <Info className="size-4 shrink-0" />
+          Sin rango de días seleccionado: se muestran los datos de hoy de forma provisional. Elige el mes y marca el rango en el calendario.
+        </p>
+      )}
 
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 justify-between px-5 py-4 border-b border-neutral-200">
@@ -108,17 +148,20 @@ export default function Predicciones() {
             <h2 className="text-lg font-bold text-ink-900">Matriz predictiva de equipos</h2>
             <span className="rounded-full bg-ink-50 text-ink-700 text-xs font-medium px-2.5 py-1">{rows.length} de 17 máquinas</span>
           </div>
-          <button
-            type="button"
-            onClick={exportCSV}
-            className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 hover:bg-neutral-50 px-3.5 py-2 text-sm font-medium text-ink-700"
-          >
-            <Download className="size-4" /> Descargar CSV
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs text-ink-500">Datos de {rangeLabel}</span>
+            <button
+              type="button"
+              onClick={exportCSV}
+              className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 hover:bg-neutral-50 px-3.5 py-2 text-sm font-medium text-ink-700"
+            >
+              <Download className="size-4" /> Descargar CSV
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto scroll-thin">
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-neutral-50 text-left text-xs font-semibold text-ink-500">
               <tr>
                 <th scope="col" className="px-5 py-3">Máquina</th>
@@ -126,13 +169,14 @@ export default function Predicciones() {
                 <th scope="col" className="px-5 py-3">Probabilidad</th>
                 <th scope="col" className="px-5 py-3">Tendencia</th>
                 <th scope="col" className="px-5 py-3">Última actualización</th>
+                <th scope="col" className="px-5 py-3">IPM</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {visible.map((r) => {
                 const level = RISK_LEVELS[r.risk]
                 const Icon = ICONS[r.icon] ?? Bolt
-                const upd = fmtUpdated(r.updatedAt, range)
+                const upd = fmtUpdated(r.updatedAt, resolved)
                 return (
                   <tr key={r.id} className={r.risk === 'critico' ? 'bg-primary-50/60' : 'hover:bg-neutral-50'}>
                     <td className="px-5 py-4">
@@ -174,12 +218,13 @@ export default function Predicciones() {
                       <p className="font-medium text-ink-800">{upd.main}</p>
                       <p className="text-xs text-ink-500">{upd.sub}</p>
                     </td>
+                    <td className="px-5 py-4 text-ink-300" aria-label="Sin dato por ahora">—</td>
                   </tr>
                 )
               })}
               {!visible.length && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center">
+                  <td colSpan={6} className="px-5 py-12 text-center">
                     <p className="font-semibold text-ink-800">Ninguna máquina coincide con estos filtros</p>
                     <p className="text-sm text-ink-500 mt-1">Prueba con otro nivel de riesgo o elige “Todas las máquinas”.</p>
                   </td>

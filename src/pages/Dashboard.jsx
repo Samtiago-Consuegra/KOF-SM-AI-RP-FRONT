@@ -13,19 +13,17 @@ import CorrelationMatrix from '../components/charts/CorrelationMatrix.jsx'
 import ScatterAnomalies from '../components/charts/ScatterAnomalies.jsx'
 import DowntimeChart from '../components/charts/DowntimeChart.jsx'
 import { CRITICAL_IDS, getMachine, resolveMachineFilter } from '../data/machines.js'
-import { HISTORY_DAYS, fileNameFor, getCorrelation, getEnergy, getScatter, getStops, getVibrationHistogram } from '../data/telemetry.js'
+import { fileNameFor, getCorrelation, getEnergy, getScatter, getStops, getVibrationHistogram } from '../data/telemetry.js'
 import { MAINTENANCE_PLANS, RISK_LEVELS, getPredictions } from '../data/predictions.js'
-import { addDays, fmtDateShort, fmtNumber, fromISODate, startOfDay, toISODate } from '../utils/format.js'
+import { fmtDateShort, fmtNumber, fromISODate, startOfDay } from '../utils/format.js'
+import { defaultTimeRange, maxISODate, minISODate, resolveTimeRange } from '../utils/period.js'
 import { useToast } from '../context/ToastContext.jsx'
-
-const PERIOD_DAYS = { semana: 7, mes: 30, fecha: 1 }
 
 export default function Dashboard() {
   const toast = useToast()
   const today = startOfDay(new Date())
   const [machineFilter, setMachineFilter] = useState('criticas')
-  const [period, setPeriod] = useState('semana')
-  const [date, setDate] = useState(toISODate(addDays(today, -1)))
+  const [range, setRange] = useState(() => defaultTimeRange(today)) // por defecto, día actual
   const [refreshKey, setRefreshKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpload, setLastUpload] = useState(null)
@@ -34,37 +32,32 @@ export default function Dashboard() {
   const stops = useMemo(() => getStops(today), [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rango de días que cubre el filtro
-  const range = useMemo(() => {
-    const days = PERIOD_DAYS[period]
-    const end = period === 'fecha' ? fromISODate(date) : today
-    const start = addDays(end, -(days - 1))
-    const list = Array.from({ length: days }, (_, i) => toISODate(addDays(start, i)))
-    const prev = Array.from({ length: days }, (_, i) => toISODate(addDays(start, i - days)))
-    return { days, list, prev, end }
-  }, [period, date]) // eslint-disable-line react-hooks/exhaustive-deps
+  const { days, list, prev, end, singleDay, provisional, label: periodLabel, seedKey: rangeKey, mode } = useMemo(
+    () => resolveTimeRange(range, today),
+    [range],
+  ) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const periodLabel = period === 'semana' ? 'la última semana' : period === 'mes' ? 'el último mes' : fmtDateShort(fromISODate(date))
-  const seedKey = `${period}-${period === 'fecha' ? date : ''}-${refreshKey}`
+  const seedKey = `${rangeKey}-${refreshKey}`
 
   const stats = useMemo(() => {
-    const inRange = stops.filter((s) => ids.includes(s.machineId) && range.list.includes(s.date))
-    const prevCount = stops.filter((s) => ids.includes(s.machineId) && range.prev.includes(s.date)).length
+    const inRange = stops.filter((s) => ids.includes(s.machineId) && list.includes(s.date))
+    const prevCount = stops.filter((s) => ids.includes(s.machineId) && prev.includes(s.date)).length
     const minutes = inRange.reduce((a, s) => a + s.minutes, 0)
 
     const critSel = ids.filter((id) => CRITICAL_IDS.includes(id))
     const mtbfValues = critSel.map((id) => {
       const n = inRange.filter((s) => s.machineId === id).length
-      return (range.days * 24) / Math.max(1, n)
+      return (days * 24) / Math.max(1, n)
     })
     const mtbf = mtbfValues.length ? mtbfValues.reduce((a, b) => a + b, 0) / mtbfValues.length : null
 
-    const byDay = range.list.map((iso) => {
+    const byDay = list.map((iso) => {
       const day = inRange.filter((s) => s.date === iso)
       return { label: fmtDateShort(fromISODate(iso)).replace(/ de \d{4}|\s\d{4}/, ''), minutes: day.reduce((a, s) => a + s.minutes, 0), stops: day.length }
     })
     const delta = prevCount ? Math.round(((inRange.length - prevCount) / prevCount) * 100) : 0
     return { count: inRange.length, minutes, mtbf, critCount: critSel.length, byDay, delta }
-  }, [stops, ids.join(), range]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stops, ids.join(), list, prev, days]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const charts = useMemo(() => ({
     energy: getEnergy(ids, seedKey),
@@ -73,7 +66,10 @@ export default function Dashboard() {
     corr: getCorrelation(`${machineFilter}-${seedKey}`),
   }), [ids.join(), seedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const predictions = useMemo(() => getPredictions('7d').filter((p) => ids.includes(p.id)), [ids.join()]) // eslint-disable-line react-hooks/exhaustive-deps
+  const predictions = useMemo(
+    () => getPredictions({ mode, seed: rangeKey, days, end }).filter((p) => ids.includes(p.id)),
+    [ids.join(), rangeKey, days, mode], // eslint-disable-line react-hooks/exhaustive-deps
+  )
   const criticalRisk = predictions.filter((p) => p.risk === 'critico')
   const topRisk = [...predictions].sort((a, b) => b.probability - a.probability)[0]
   const highPlan = MAINTENANCE_PLANS.find((p) => p.priority === 'alta' && ids.includes(p.machineId))
@@ -87,7 +83,7 @@ export default function Dashboard() {
     }, 900)
   }
 
-  const fileName = lastUpload?.name ?? fileNameFor(period === 'fecha' ? date : toISODate(addDays(today, -1)))
+  const fileName = lastUpload?.name ?? fileNameFor(end)
   const deltaUp = stats.delta > 0
 
   return (
@@ -109,20 +105,28 @@ export default function Dashboard() {
       <p className="-mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
         <span className="inline-flex items-center gap-1.5"><Clock3 className="size-4" />Datos de {periodLabel}</span>
         <span className="inline-flex items-center gap-1.5 font-mono text-xs text-ink-600"><FileSpreadsheet className="size-4 text-tertiary-600" />{fileName}</span>
+        {provisional && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-amber-700">
+            <AlertTriangle className="size-4" />Sin rango de días seleccionado: se muestran los datos de hoy de forma provisional
+          </span>
+        )}
       </p>
 
       {/* Filtros */}
-      <Card className="p-4 flex flex-col lg:flex-row lg:items-center gap-3">
-        <span className="text-sm font-semibold text-ink-700 shrink-0">Máquinas</span>
-        <MachineFilter value={machineFilter} onChange={setMachineFilter} className="w-full lg:w-96" />
+      <Card className="p-4 flex flex-col lg:flex-row lg:items-end gap-3 lg:gap-4">
+        <MachineFilter
+          label="Máquinas"
+          variant="toolbar"
+          value={machineFilter}
+          onChange={setMachineFilter}
+          className="w-full lg:w-80"
+        />
         <div className="lg:ml-auto">
           <PeriodFilter
-            period={period}
-            date={date}
-            onPeriod={setPeriod}
-            onDate={setDate}
-            min={toISODate(addDays(today, -(HISTORY_DAYS - 1)))}
-            max={toISODate(today)}
+            value={range}
+            onChange={setRange}
+            min={minISODate(today)}
+            max={maxISODate(today)}
           />
         </div>
       </Card>
@@ -134,7 +138,7 @@ export default function Dashboard() {
           value={fmtNumber(stats.count)}
           icon={AlertTriangle}
           tone="red"
-          caption={period === 'fecha' ? 'Paros registrados en el archivo del día' : (
+          caption={singleDay ? 'Paros registrados en el archivo del día' : (
             <span className={`inline-flex items-center gap-1 ${deltaUp ? 'text-primary-600' : 'text-tertiary-600'}`}>
               {deltaUp ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
               {deltaUp ? '+' : ''}{stats.delta}% frente al periodo anterior
