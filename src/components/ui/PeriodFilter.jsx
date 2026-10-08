@@ -1,8 +1,8 @@
 import Dropdown from './Dropdown.jsx'
 import DateRangePicker from './Calendar.jsx'
-import { MONTH_OPTIONS, PERIOD_OPTIONS } from '../../utils/period.js'
-import { addDays, startOfDay, toISODate } from '../../utils/format.js'
-import { HISTORY_DAYS } from '../../data/telemetry.js'
+import { PERIOD_OPTIONS, monthBounds } from '../../utils/period.js'
+import { toISODate } from '../../utils/format.js'
+import { monthOptions } from '../../api/periods.js'
 
 const Caption = ({ children }) => (
   <span className="block text-xs font-medium text-ink-500 mb-1.5">{children}</span>
@@ -19,14 +19,23 @@ const monthShort = (key) => {
 /**
  * Filtro de tiempo del EDA y de Predicciones.
  * value: { period, month, from, to } — ver utils/period.js
+ *
+ * El dropdown de mes y el rango de días son controles independientes: elegir un mes
+ * carga el mes completo, y marcar días en el calendario acota ese rango a lo escogido.
+ * `bounds` son los límites reales de los datos; sin ellos se usa el mes actual.
  */
-export default function PeriodFilter({ value, onChange, className = '', min, max }) {
-  const today = startOfDay(new Date())
-  const minISO = min ?? toISODate(addDays(today, -(HISTORY_DAYS - 1)))
-  const maxISO = max ?? toISODate(today)
+export default function PeriodFilter({ value, onChange, className = '', bounds = {} }) {
+  const months = bounds.months ?? []
+  const month = value.month ?? months[months.length - 1] ?? null
+  // El calendario compara fechas como texto: sin límites deshabilitaría todos los días.
+  const min = bounds.min ?? toISODate(monthBounds(month).start)
+  const max = bounds.max ?? toISODate(new Date())
 
-  const pickMonth = (month) => onChange({ ...value, period: 'mes', month, from: null, to: null })
-  const pickRange = (from, to) => onChange({ ...value, period: to ? 'mes' : value.period, from, to })
+  const pickMonth = (key) => onChange({ ...value, period: 'mes', month: key, from: null, to: null })
+  // `to` llega en null tras el primer clic: hay que guardarlo así, porque el calendario
+  // necesita saber que la selección sigue abierta para esperar el día final. Cerrar
+  // el rango aquí (to ?? from) dejaba elegir un solo día pero anulaba los varios días.
+  const pickRange = (from, to) => (from ? onChange({ ...value, period: 'mes', from, to }) : onChange({ ...value, from: null, to: null }))
 
   return (
     <div className={className}>
@@ -56,20 +65,20 @@ export default function PeriodFilter({ value, onChange, className = '', min, max
           <div className="flex items-center gap-2">
             <Dropdown
               variant="toolbar"
-              value={value.month}
+              value={month}
               onChange={pickMonth}
-              options={MONTH_OPTIONS}
-              className="w-40"
+              options={monthOptions(months)}
+              className="w-44"
               renderValue={(o) => <span className="font-medium">{monthShort(o?.value)}</span>}
             />
             <DateRangePicker
               from={value.from}
               to={value.to}
-              month={value.month}
+              month={month}
               onChange={({ from, to }) => pickRange(from, to)}
               onMonthChange={pickMonth}
-              min={minISO}
-              max={maxISO}
+              min={min}
+              max={max}
             />
           </div>
         </div>

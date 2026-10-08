@@ -84,8 +84,6 @@ export const C = {
   teal: '#0d9488',
 }
 
-export const axisProps = { tick: { fill: C.axis, fontSize: 11 }, axisLine: false, tickLine: false }
-
 export function TooltipBox({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null
   return (

@@ -1,13 +1,10 @@
-import { useMemo } from 'react'
 import { ResponsiveContainer } from 'recharts'
 import ChartCard from './ChartCard.jsx'
 import HorizontalBars from './HorizontalBars.jsx'
 import { CRITICAL_COLOR, fmtMin } from './edaTheme.jsx'
-import { byFailure } from './edaData.js'
 
-// Imagen 7: duración promedio por tipo de falla (minutos)
-export default function DuracionPromedioChart({ stops, className }) {
-  const data = useMemo(() => byFailure(stops), [stops])
+// Duración promedio por tipo de falla. SÍ sigue el filtro de máquinas.
+export default function DuracionPromedioChart({ data, className }) {
   const rows = [...data]
     .sort((a, b) => b.avg_minutes - a.avg_minutes)
     .slice(0, 15)

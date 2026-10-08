@@ -1,20 +1,18 @@
 import { addDays, fromISODate, startOfDay, toISODate } from './format.js'
-import { HISTORY_DAYS } from '../data/telemetry.js'
 
-// Modos del filtro de tiempo. El mes usa el rango escogido en el calendario.
+// Modos del filtro de tiempo. "Mes" cubre tanto el mes completo como el rango de días
+// que se marque en el calendario (ver resolveTimeRange).
 export const PERIOD_OPTIONS = [
   { value: 'hoy', label: 'Hoy' },
   { value: 'semana', label: 'Última semana' },
+  { value: 'mes', label: 'Mes' },
 ]
-
-const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1)
 
 export const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
-// Límite del histórico disponible (mismo origen que los archivos Excel)
-export const historyStart = (today) => addDays(startOfDay(today), -(HISTORY_DAYS - 1))
-
-export const minISODate = (today) => toISODate(historyStart(today))
+// Límite por defecto mientras no respondan los datos reales; el histórico arranca en 2024,
+// así que el frontend lo reemplaza con `bounds` de `GET /eda/periodos`.
+export const minISODate = (today) => toISODate(addDays(startOfDay(today), -59))
 export const maxISODate = (today) => toISODate(startOfDay(today))
 
 // Estado inicial: día actual, sin rango de mes escogido
@@ -32,19 +30,6 @@ export function monthBounds(month) {
   const end = new Date(y, m, 0)
   return { start, end, startISO: toISODate(start), endISO: toISODate(end), days: end.getDate() }
 }
-
-// Solo los meses que tienen archivos disponibles (aprox. los últimos 3 meses)
-export const MONTH_OPTIONS = (() => {
-  const today = startOfDay(new Date())
-  const from = historyStart(today)
-  const first = new Date(from.getFullYear(), from.getMonth(), 1)
-  const last = new Date(today.getFullYear(), today.getMonth(), 1)
-  const options = []
-  for (let d = new Date(last); d >= first; d.setMonth(d.getMonth() - 1)) {
-    options.push({ value: monthKey(d), label: capitalize(d.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })) })
-  }
-  return options
-})()
 
 const isoList = (fromISO, toISO) => {
   const out = []
@@ -67,14 +52,20 @@ const labelFor = (list, mode) => {
 }
 
 /**
- * Convierte el estado del filtro en el rango de días con el que se calculan
- * los datos. Si está en modo mes sin rango escogido cae al día actual y
- * marca `provisional` para que la pantalla lo advierta.
+ * Convierte el estado del filtro en el rango de días con el que se piden los datos.
+ *
+ * - `hoy` / `semana` se anclan a hoy.
+ * - `mes` con rango de días marcado devuelve exactamente ese rango (uno o varios días).
+ * - `mes` sin rango marcado devuelve el mes completo escogido en el dropdown, recortado
+ *   a los límites reales de los datos.
+ *
+ * `bounds` son los límites reales de `GET /eda/periodos` ({min, max}); sin ellos se cae a
+ * los últimos 60 días para que la pantalla siga teniendo algo coherente mientras carga.
  */
-export function resolveTimeRange(range, today = new Date()) {
+export function resolveTimeRange(range, today = new Date(), bounds = {}) {
   const day = startOfDay(today)
-  const minISO = minISODate(day)
-  const maxISO = maxISODate(day)
+  const minISO = bounds.min ?? minISODate(day)
+  const maxISO = bounds.max ?? maxISODate(day)
   const month = range.month && monthBounds(range.month) ? range.month : monthKey(day)
 
   let mode = range.period
@@ -83,14 +74,24 @@ export function resolveTimeRange(range, today = new Date()) {
   if (mode === 'mes') {
     const from = range.from ? clampISO(range.from, minISO, maxISO) : null
     const to = range.to ? clampISO(range.to, minISO, maxISO) : null
-    if (from && to) list = isoList(from, to <= from ? from : to)
-    else { list = [maxISO]; mode = 'hoy' }
+    if (from) {
+      // Rango explícito del calendario: un día o varios.
+      list = isoList(from, to && to >= from ? to : from)
+    } else {
+      // Solo mes escogido -> mes completo.
+      const { startISO, endISO } = monthBounds(month)
+      const mStart = clampISO(startISO, minISO, maxISO)
+      const mEnd = clampISO(endISO, minISO, maxISO)
+      list = isoList(mStart, mEnd >= mStart ? mEnd : mStart)
+    }
   } else if (mode === 'semana') {
-    const start = clampISO(toISODate(addDays(day, -6)), minISO, maxISO)
-    list = isoList(start, maxISO)
+    // "Última semana" son los 7 días hasta hoy, no hasta el último dato.
+    const todayISO = toISODate(day)
+    const start = clampISO(toISODate(addDays(day, -6)), minISO, todayISO)
+    list = isoList(start, todayISO)
   } else {
     mode = 'hoy'
-    list = [maxISO]
+    list = [toISODate(day)]
   }
 
   const start = list[0]
@@ -100,7 +101,6 @@ export function resolveTimeRange(range, today = new Date()) {
 
   return {
     mode,
-    provisional: range.period === 'mes' && mode === 'hoy',
     days,
     list,
     prev,

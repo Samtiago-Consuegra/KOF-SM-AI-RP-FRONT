@@ -1,7 +1,6 @@
 import Dropdown from './Dropdown.jsx'
-import { MACHINE_FILTER_OPTIONS } from '../../data/machines.js'
 
-export default function MachineFilter({ value, onChange, label, className, options = MACHINE_FILTER_OPTIONS, variant = 'default' }) {
+export default function MachineFilter({ value, onChange, label, className, options = [], variant = 'default' }) {
   return (
     <Dropdown
       label={label}

@@ -1,13 +1,10 @@
-import { useMemo } from 'react'
 import ChartCard from './ChartCard.jsx'
 import { fmtInt } from './edaTheme.jsx'
-import { mtbfRows } from './edaData.js'
 
-const fmtH = (v) => Number(v).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const fmtH = (v) => Number(v ?? 0).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-// Imagen 9: MTBF preliminar por equipo (críticas arriba)
-export default function MtbfTable({ stops, days, className }) {
-  const rows = useMemo(() => mtbfRows(stops, days), [stops, days])
+// MTBF por equipo (las críticas arriba). Contexto global: ignora el filtro de máquinas.
+export default function MtbfTable({ rows, className }) {
   const worst = rows.reduce((a, b) => (a === null || b.mtbf_hours < a.mtbf_hours ? b : a), null)
   return (
     <ChartCard

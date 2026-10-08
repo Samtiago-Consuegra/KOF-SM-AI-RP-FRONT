@@ -200,7 +200,9 @@ export default function DateRangePicker({ from, to, month, onChange, onMonthChan
   }, [open])
 
   const text = rangeText(from, to)
-  const active = Boolean(from && to)
+  // Un solo día marcado (to aún en null) también cuenta como selección activa: de lo
+  // contrario el botón ni se resalta ni ofrece la "X" para limpiarlo.
+  const active = Boolean(from)
 
   const align = place.align === 'right' ? 'right-0' : place.align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'
   const side = place.side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'

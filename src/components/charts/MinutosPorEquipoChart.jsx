@@ -1,13 +1,10 @@
-import { useMemo } from 'react'
 import { ResponsiveContainer } from 'recharts'
 import ChartCard from './ChartCard.jsx'
 import MachineBars from './MachineBars.jsx'
 import { CriticalLegend, fmtMin, maxBy } from './edaTheme.jsx'
-import { byMachine } from './edaData.js'
 
-// Imagen 3: minutos de paro por equipo
-export default function MinutosPorEquipoChart({ stops, className }) {
-  const data = useMemo(() => byMachine(stops), [stops])
+// Minutos de paro por equipo. Contexto global: ignora el filtro de máquinas.
+export default function MinutosPorEquipoChart({ data, className }) {
   const top = maxBy(data, 'total_minutes')
   const critical = data.filter((m) => m.critical).map((m) => m.machine)
   return (

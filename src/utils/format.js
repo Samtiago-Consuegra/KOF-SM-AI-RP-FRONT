@@ -7,6 +7,9 @@ export const fmtDateLong = (date) =>
 export const fmtDateShort = (date) =>
   date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 
+export const fmtDateIntl = (date) =>
+  date.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
 export const toISODate = (date) => {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')

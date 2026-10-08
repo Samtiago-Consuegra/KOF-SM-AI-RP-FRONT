@@ -3,18 +3,20 @@ import { Activity, CalendarCog, FileSpreadsheet, LayoutDashboard, LogOut, Factor
 import Avatar from '../ui/Avatar.jsx'
 import Logo from './Logo.jsx'
 import { useUser } from '../../context/UserContext.jsx'
+import { useMachines } from '../../hooks/useMachines.js'
 
 const ITEMS = [
   { to: '/dashboard', label: 'Dashboard (EDA)', icon: LayoutDashboard },
   { to: '/predicciones', label: 'Predicciones de falla', icon: Activity },
   { to: '/mantenimiento', label: 'Planes de mantenimiento', icon: CalendarCog },
-  { to: '/maquinas', label: 'Máquinas', icon: Factory, badge: 17 },
+  { to: '/maquinas', label: 'Máquinas', icon: Factory, countBadge: true },
   { to: '/historial', label: 'Historial de Excel', icon: FileSpreadsheet },
   { to: '/perfil', label: 'Perfil', icon: UserRound },
 ]
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useUser()
+  const { machines } = useMachines()
 
   return (
     <>
@@ -37,25 +39,28 @@ export default function Sidebar({ open, onClose }) {
         <nav className="flex-1 overflow-y-auto p-3">
           <p className="px-3 pt-2 pb-2 text-xs font-semibold text-ink-400">Operaciones y monitoreo</p>
           <ul className="space-y-1">
-            {ITEMS.map(({ to, label, icon: Icon, badge }) => (
-              <li key={to}>
-                <NavLink
-                  to={to}
-                  onClick={onClose}
-                  className={({ isActive }) =>
-                    `relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-700 font-semibold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-primary-500'
-                        : 'text-ink-700 hover:bg-neutral-100'
-                    }`
-                  }
-                >
-                  <Icon className="size-[18px]" />
-                  <span className="flex-1">{label}</span>
-                  {badge && <span className="rounded-full bg-ink-50 text-ink-700 text-xs font-semibold px-2 py-0.5">{badge}</span>}
-                </NavLink>
-              </li>
-            ))}
+            {ITEMS.map(({ to, label, icon: Icon, countBadge }) => {
+              const badge = countBadge && machines.length ? machines.length : 0
+              return (
+                <li key={to}>
+                  <NavLink
+                    to={to}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                        isActive
+                          ? 'bg-primary-50 text-primary-700 font-semibold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-primary-500'
+                          : 'text-ink-700 hover:bg-neutral-100'
+                      }`
+                    }
+                  >
+                    <Icon className="size-[18px]" />
+                    <span className="flex-1">{label}</span>
+                    {badge > 0 && <span className="rounded-full bg-ink-50 text-ink-700 text-xs font-semibold px-2 py-0.5">{badge}</span>}
+                  </NavLink>
+                </li>
+              )
+            })}
           </ul>
         </nav>
 

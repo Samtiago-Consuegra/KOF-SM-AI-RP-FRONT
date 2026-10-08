@@ -1,13 +1,10 @@
-import { useMemo } from 'react'
 import { ResponsiveContainer } from 'recharts'
 import ChartCard from './ChartCard.jsx'
 import HorizontalBars from './HorizontalBars.jsx'
 import { CRITICAL_COLOR, CriticalLegend, OTHER_FAILURE_COLOR, fmtInt } from './edaTheme.jsx'
-import { byFailure } from './edaData.js'
 
-// Imagen 4: top 15 tipos de falla según el enfoque (filtro de máquinas)
-export default function TopFallasChart({ stops, className }) {
-  const data = useMemo(() => byFailure(stops), [stops])
+// Top 15 tipos de falla. SÍ sigue el filtro de máquinas.
+export default function TopFallasChart({ data, className }) {
   const rows = [...data].sort((a, b) => b.count - a.count).slice(0, 15)
   const top = rows[0]
   const critical = [...new Set(rows.filter((r) => r.critical).map((r) => r.machine))]

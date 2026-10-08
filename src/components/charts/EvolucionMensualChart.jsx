@@ -1,25 +1,26 @@
-import { useMemo } from 'react'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import ChartCard, { TooltipBox } from './ChartCard.jsx'
 import { colorByMachine, fmtInt, gridProps, tickStyle } from './edaTheme.jsx'
-import { trend } from './edaData.js'
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-// 'YYYY-MM' se muestra tal cual; 'YYYY-MM-DD' (rangos cortos) como '28 sep'
+// 'YYYY-MM' se muestra tal cual; 'YYYY-MM-DD' (serie diaria) como '28 sep'
 const fmtPeriod = (p) => (p.length > 7 ? `${Number(p.slice(8))} ${MONTHS[Number(p.slice(5, 7)) - 1]}` : p)
 
-// Imagen 5: evolución mensual de paros por equipo
-export default function EvolucionMensualChart({ stops, className }) {
-  const points = useMemo(() => trend(stops), [stops])
+// El backend manda `monthly_trend` ({month}) para rangos largos y `by_day_machine` ({date})
+// para los cortos. `fmtPeriod` ya distingue ambos formatos por longitud.
+const periodOf = (p) => p.date ?? p.month
+
+// Evolución de paros por equipo. SÍ sigue el filtro de máquinas.
+export default function EvolucionMensualChart({ points, className }) {
   const machines = [...new Set(points.map((p) => p.machine))].sort((a, b) => a.localeCompare(b, 'es'))
-  const periods = [...new Set(points.map((p) => p.month))].sort()
-  const daily = periods.some((p) => p.length > 7)
+  const periods = [...new Set(points.map(periodOf))].sort()
+  const daily = periods.length > 0 && periods[0].length > 7
   const colors = colorByMachine(machines)
 
   const data = periods.map((period) => {
     const row = { period }
     machines.forEach((m) => { row[m] = 0 })
-    points.filter((p) => p.month === period).forEach((p) => { row[p.machine] = p.count })
+    points.filter((p) => periodOf(p) === period).forEach((p) => { row[p.machine] = p.count })
     return row
   })
 
@@ -32,7 +33,7 @@ export default function EvolucionMensualChart({ stops, className }) {
       title={daily ? 'Evolución diaria de paros' : 'Evolución mensual de paros'}
       subtitle={`Paros por ${daily ? 'día' : 'mes'} de cada equipo`}
       footer={<>
-        <span>Pico: {peak ? `${peak.machine} en ${fmtPeriod(peak.month)}` : '—'}</span>
+        <span>Pico: {peak ? `${peak.machine} en ${fmtPeriod(periodOf(peak))}` : '—'}</span>
         <span className="font-semibold text-primary-600">{fmtInt(peak?.count ?? 0)} paros</span>
       </>}
     >

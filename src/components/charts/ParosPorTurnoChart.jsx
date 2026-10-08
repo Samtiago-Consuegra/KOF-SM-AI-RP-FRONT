@@ -1,12 +1,9 @@
-import { useMemo } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import ChartCard, { TooltipBox } from './ChartCard.jsx'
 import { colorByMachine, fmtInt, gridProps, tickStyle } from './edaTheme.jsx'
-import { byShift } from './edaData.js'
 
-// Imagen 6: distribución de paros por turno
-export default function ParosPorTurnoChart({ stops, className }) {
-  const points = useMemo(() => byShift(stops), [stops])
+// Distribución de paros por turno. Contexto global: ignora el filtro de máquinas.
+export default function ParosPorTurnoChart({ points, className }) {
   const machines = [...new Set(points.map((p) => p.machine))].sort((a, b) => a.localeCompare(b, 'es'))
   const shifts = [...new Set(points.map((p) => p.shift))].sort()
   const colors = colorByMachine(machines)

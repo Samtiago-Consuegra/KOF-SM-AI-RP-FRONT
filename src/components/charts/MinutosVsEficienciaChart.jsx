@@ -1,14 +1,12 @@
-import { useMemo } from 'react'
 import { CartesianGrid, Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts'
 import ChartCard, { TooltipBox } from './ChartCard.jsx'
 import { CRITICAL_COLOR, fmtInt, gridProps, maxBy, tickStyle } from './edaTheme.jsx'
-import { scatterPoints } from './edaData.js'
 
 const fmtPts = (v) => Number(v ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 4 })
 
-// Imagen 8: minutos de paro vs puntos de eficiencia perdidos
-export default function MinutosVsEficienciaChart({ stops, className }) {
-  const data = useMemo(() => scatterPoints(stops), [stops])
+// Minutos de paro vs puntos de eficiencia perdidos. Contexto global: ignora el filtro.
+export default function MinutosVsEficienciaChart({ points, className }) {
+  const data = points
   const worst = maxBy(data, 'efficiency_points_lost')
   return (
     <ChartCard

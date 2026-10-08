@@ -1,13 +1,10 @@
-import { useMemo } from 'react'
 import { ResponsiveContainer } from 'recharts'
 import ChartCard from './ChartCard.jsx'
 import MachineBars from './MachineBars.jsx'
 import { CriticalLegend, fmtInt, maxBy } from './edaTheme.jsx'
-import { byMachine } from './edaData.js'
 
-// Imagen 1 (vista ampliada) e imagen 2: cantidad de paros por equipo
-export default function ParosPorEquipoChart({ stops, periodLabel, className }) {
-  const data = useMemo(() => byMachine(stops), [stops])
+// Cantidad de paros por equipo. Contexto global: ignora el filtro de máquinas.
+export default function ParosPorEquipoChart({ data, periodLabel, className }) {
   const top = maxBy(data, 'count')
   const critical = data.filter((m) => m.critical).map((m) => m.machine)
   return (
