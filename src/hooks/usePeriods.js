@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { fetchPeriods } from '../api/periods.js'
 
@@ -8,6 +8,7 @@ import { fetchPeriods } from '../api/periods.js'
  */
 export function usePeriods() {
   const [state, setState] = useState({ months: [], min: null, max: null })
+  const [nonce, setNonce] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -17,7 +18,9 @@ export function usePeriods() {
       })
       .catch(() => {})
     return () => { alive = false }
-  }, [])
+  }, [nonce])
 
-  return state
+  const refresh = useCallback(() => setNonce((n) => n + 1), [])
+
+  return { ...state, refresh }
 }

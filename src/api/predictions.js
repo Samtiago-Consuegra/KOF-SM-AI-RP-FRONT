@@ -40,9 +40,10 @@ export function normalizePredictions(raw) {
   }
 }
 
-/** Matriz predictiva completa (todas las secciones) para la pantalla /predicciones. */
-export async function fetchPredictions() {
-  const res = await apiGet('/predicciones')
+/** Matriz predictiva completa (todas las secciones) para la pantalla /predicciones.
+ *  `hasta` (YYYY-MM-DD) recalcula toda la matriz con datos hasta esa fecha. */
+export async function fetchPredictions({ hasta } = {}) {
+  const res = await apiGet('/predicciones', { hasta: hasta || undefined })
   return normalizePredictions(res)
 }
 

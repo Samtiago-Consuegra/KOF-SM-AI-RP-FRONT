@@ -31,6 +31,15 @@ export default function PeriodFilter({ value, onChange, className = '', bounds =
   const min = bounds.min ?? toISODate(monthBounds(month).start)
   const max = bounds.max ?? toISODate(new Date())
 
+  // Rango de meses: "Desde" y "Hasta" (ej.: junio - septiembre).
+  const fromMonth = value.fromMonth ?? months[0] ?? null
+  const toMonth = value.toMonth ?? months[months.length - 1] ?? null
+  const pickMonths = (from, to) => {
+    // Si quedan invertidos se reordenan para que "Desde" siempre quede primero.
+    const ordered = to && from && to < from ? [to, from] : [from, to]
+    onChange({ ...value, period: 'meses', fromMonth: ordered[0], toMonth: ordered[1], from: null, to: null })
+  }
+
   const pickMonth = (key) => onChange({ ...value, period: 'mes', month: key, from: null, to: null })
   // `to` llega en null tras el primer clic: hay que guardarlo así, porque el calendario
   // necesita saber que la selección sigue abierta para esperar el día final. Cerrar
@@ -49,7 +58,11 @@ export default function PeriodFilter({ value, onChange, className = '', bounds =
                 type="button"
                 role="radio"
                 aria-checked={value.period === o.value}
-                onClick={() => onChange({ ...value, period: o.value })}
+                onClick={() =>
+                  o.value === 'meses'
+                    ? onChange({ ...value, period: 'meses', fromMonth: months[0] ?? null, toMonth: months[months.length - 1] ?? null })
+                    : onChange({ ...value, period: o.value })
+                }
                 className={`h-8 rounded-lg px-3.5 text-sm font-medium whitespace-nowrap transition-colors ${
                   value.period === o.value ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900'
                 }`}
@@ -60,28 +73,53 @@ export default function PeriodFilter({ value, onChange, className = '', bounds =
           </div>
         </div>
 
-        <div>
-          <Caption>Mes y rango de días</Caption>
-          <div className="flex items-center gap-2">
-            <Dropdown
-              variant="toolbar"
-              value={month}
-              onChange={pickMonth}
-              options={monthOptions(months)}
-              className="w-44"
-              renderValue={(o) => <span className="font-medium">{monthShort(o?.value)}</span>}
-            />
-            <DateRangePicker
-              from={value.from}
-              to={value.to}
-              month={month}
-              onChange={({ from, to }) => pickRange(from, to)}
-              onMonthChange={pickMonth}
-              min={min}
-              max={max}
-            />
+        {value.period === 'meses' ? (
+          <div>
+            <Caption>Rango de meses</Caption>
+            <div className="flex items-center gap-2">
+              <Dropdown
+                variant="toolbar"
+                value={fromMonth}
+                onChange={(key) => pickMonths(key, toMonth)}
+                options={monthOptions(months)}
+                className="w-44"
+                renderValue={(o) => <span className="font-medium">{monthShort(o?.value)}</span>}
+              />
+              <span className="text-sm text-ink-400">a</span>
+              <Dropdown
+                variant="toolbar"
+                value={toMonth}
+                onChange={(key) => pickMonths(fromMonth, key)}
+                options={monthOptions(months)}
+                className="w-44"
+                renderValue={(o) => <span className="font-medium">{monthShort(o?.value)}</span>}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div>
+            <Caption>Mes y rango de días</Caption>
+            <div className="flex items-center gap-2">
+              <Dropdown
+                variant="toolbar"
+                value={month}
+                onChange={pickMonth}
+                options={monthOptions(months)}
+                className="w-44"
+                renderValue={(o) => <span className="font-medium">{monthShort(o?.value)}</span>}
+              />
+              <DateRangePicker
+                from={value.from}
+                to={value.to}
+                month={month}
+                onChange={({ from, to }) => pickRange(from, to)}
+                onMonthChange={pickMonth}
+                min={min}
+                max={max}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

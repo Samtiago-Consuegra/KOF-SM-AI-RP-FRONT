@@ -9,9 +9,10 @@ import Dropdown from '../components/ui/Dropdown.jsx'
 import MachineFilter from '../components/ui/MachineFilter.jsx'
 import PeriodFilter from '../components/ui/PeriodFilter.jsx'
 import Sparkline from '../components/ui/Sparkline.jsx'
+import InfoTip from '../components/ui/InfoTip.jsx'
 import { criticalMachineOptions } from '../api/machines.js'
 import { RISK_COLORS, RISK_LEVELS } from '../data/predictions.js'
-import { downloadCSV, fmtDateIntl, fmtDateShort, fmtNumber, startOfDay } from '../utils/format.js'
+import { fmtDateIntl, fmtDateShort, fmtNumber, startOfDay } from '../utils/format.js'
 import { defaultTimeRange, resolveTimeRange, timeRangeKey } from '../utils/period.js'
 import { useMachines } from '../hooks/useMachines.js'
 import { usePeriods } from '../hooks/usePeriods.js'
@@ -33,8 +34,6 @@ export default function Predicciones() {
 
   const { machines } = useMachines()
   const periods = usePeriods()
-  const { data, loading, error, refresh } = usePredictions()
-
   const [machineFilter, setMachineFilter] = useState(() => (requested ? requested : 'criticas'))
   const [risk, setRisk] = useState('todos')
   const [range, setRange] = useState(() => defaultTimeRange(today))
@@ -42,6 +41,15 @@ export default function Predicciones() {
 
   const rangeKey = timeRangeKey(range)
   const resolved = useMemo(() => resolveTimeRange(range, today, periods), [range, periods]) // eslint-disable-line react-hooks/exhaustive-deps
+  const windowStart = resolved.list[0]
+  const windowEnd = resolved.list[resolved.list.length - 1]
+
+  // La matriz se recalcula en el backend cuando el rango termina antes del último dato
+  // (un día, semana o mes anteriores): eso hace que TODAS las columnas cambien con el corte.
+  const hasta = periods.max && windowEnd && windowEnd < periods.max ? windowEnd : null
+  const snapshot = Boolean(hasta)
+  const { data, loading, error, refresh } = usePredictions(hasta)
+  const dataUntil = data?.meta?.datos_hasta ?? null
 
   const criticalNames = useMemo(() => machines.filter((m) => m.critical).map((m) => m.machine), [machines])
 
@@ -57,9 +65,10 @@ export default function Predicciones() {
   // en el último mes con registros para que la tendencia muestre algo.
   const { months } = periods
   useEffect(() => {
+    if (range.period === 'meses') return
     if (months.length === 0 || months.includes(range.month)) return
     setRange((r) => ({ ...r, period: 'mes', month: months[months.length - 1] }))
-  }, [months, range.month])
+  }, [months, range.period, range.month])
 
   // Mantiene la URL sincronizada con el filtro de máquina
   useEffect(() => {
@@ -71,8 +80,6 @@ export default function Predicciones() {
   useEffect(() => setPage(1), [machineFilter, risk, rangeKey])
 
   const all = data?.rows ?? []
-  const windowStart = resolved.list[0]
-  const windowEnd = resolved.list[resolved.list.length - 1]
 
   const counts = useMemo(() => ({
     total: all.length,
@@ -102,26 +109,120 @@ export default function Predicciones() {
   const visible = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const generated = data?.meta?.generado ? new Date(data.meta.generado) : null
-  const dataUntil = data?.meta?.datos_hasta ?? null
 
   const machineOptions = useMemo(() => criticalMachineOptions(machines), [machines])
 
-  const exportCSV = () => {
+  const machineOption = machineOptions.find((o) => o.value === machineFilter)
+  const machineLabel = machineOption ? machineOption.label : machineFilter
+  const riskLabel = RISK_OPTIONS.find((o) => o.value === risk)?.label ?? risk
+  const periodLabel = resolved.label.charAt(0).toUpperCase() + resolved.label.slice(1)
+
+  const exportXlsx = async () => {
     if (!rows.length) return toast('No hay filas para descargar con estos filtros.', 'error')
-    downloadCSV(`matriz_predictiva_${toISODate(new Date())}.csv`, [
-      ['Máquina', 'Nivel de riesgo', 'IPM', 'Probabilidad de falla (%)', 'Régimen', 'Causa principal', 'Horizonte', 'Tendencia (%)'],
-      ...rows.map((r) => [
-        r.machine,
-        RISK_LEVELS[r.risk].label,
-        fmtNumber(r.ipmCurrent, 1),
-        r.probability != null ? r.probability : 'N/A',
-        r.regime ?? '',
-        r.topCause ?? '',
-        r.horizon ?? '',
-        r.trendPctCurrent != null ? `${r.trendPctCurrent > 0 ? '+' : ''}${r.trendPctCurrent}` : '',
-      ]),
-    ])
-    toast(`Matriz descargada (${rows.length} máquinas)`)
+
+    const RISK_EXCEL = {
+      critico: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }, font: { color: { argb: 'FF9C0006' }, bold: true } },
+      medio: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } }, font: { color: { argb: 'FF9C5700' }, bold: true } },
+      bajo: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } }, font: { color: { argb: 'FF006100' }, bold: true } },
+    }
+
+    try {
+      // exceljs es pesado (~1 MB); solo se carga al pulsar "Descargar".
+      const { default: ExcelJS } = await import('exceljs')
+      const wb = new ExcelJS.Workbook()
+      wb.creator = 'KOF SMART'
+      const ws = wb.addWorksheet('Matriz predictiva', { views: [{ state: 'frozen', ySplit: 7 }] })
+
+      // Filas 1-6: título y filtros aplicados desde la UI.
+      const cell = (addr, value, style) => {
+        const c = ws.getCell(addr)
+        c.value = value
+        if (style) Object.assign(c, style)
+        return c
+      }
+
+      cell('A1', 'Matriz predictiva de equipos', { font: { bold: true, size: 14, color: { argb: 'FF1F2937' } }, alignment: { vertical: 'middle' } })
+      ws.mergeCells('A1:H1')
+      ws.getRow(1).height = 26
+
+      cell('A3', 'Generado', { font: { bold: true } })
+      cell('B3', generated ? `${fmtDateShort(generated)} ${generated.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` : '—')
+      ws.mergeCells('B3:H3')
+
+      cell('A4', 'Período', { font: { bold: true } })
+      const corte = snapshot ? ` · matriz al cierre del ${fmtDateIntl(new Date(`${hasta}T00:00:00`))}` : ' · última ejecución del motor'
+      cell('B4', `${periodLabel}${corte}`)
+      ws.mergeCells('B4:H4')
+
+      cell('A5', 'Filtros', { font: { bold: true } })
+      const datos = dataUntil ? `datos hasta ${fmtDateIntl(new Date(`${dataUntil}T00:00:00`))}` : 'sin datos'
+      cell('B5', `Máquina: ${machineLabel} · Nivel de riesgo: ${riskLabel} · ${datos}`)
+      ws.mergeCells('B5:H5')
+
+      // Encabezado de la tabla en la fila 7 y datos desde la fila 8.
+      const headerRow = ws.getRow(7)
+      const HEADERS = ['Máquina', 'Nivel de riesgo', 'IPM', 'Probabilidad / pronóstico', 'Régimen', 'Causa principal', 'Horizonte', 'Tendencia (%)']
+      HEADERS.forEach((h, i) => {
+        const c = headerRow.getCell(i + 1)
+        c.value = h
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } }
+        c.alignment = { vertical: 'middle' }
+      })
+      headerRow.height = 22
+
+      rows.forEach((r, i) => {
+        const n = i + 8
+        cell(`A${n}`, r.machine)
+        const riskCell = cell(`B${n}`, RISK_LEVELS[r.risk].label)
+        Object.assign(riskCell, RISK_EXCEL[r.risk] ?? {})
+        cell(`C${n}`, r.ipmCurrent != null ? r.ipmCurrent : null)
+        cell(`D${n}`, r.probability != null ? r.probability : r.expectedFailuresWeek != null ? `~${fmtNumber(r.expectedFailuresWeek, 1)} fallas/sem` : 'N/A')
+        cell(`E${n}`, r.regime ?? '')
+        cell(`F${n}`, r.topCause ?? '')
+        cell(`G${n}`, r.horizon ?? '')
+        cell(`H${n}`, r.trendPctCurrent != null ? r.trendPctCurrent : null)
+      })
+
+      // Bordes finos en la región de la tabla.
+      const thin = { style: 'thin', color: { argb: 'FFD1D5DB' } }
+      for (let r = 7; r <= 7 + rows.length; r++) {
+        for (let cIdx = 1; cIdx <= 8; cIdx++) {
+          ws.getCell(r, cIdx).border = { top: thin, left: thin, bottom: thin, right: thin }
+        }
+      }
+
+      // Leyenda del semáforo al pie del reporte.
+      const l0 = 7 + rows.length + 2
+      cell(`A${l0}`, 'Leyenda · semáforo del IPM (ventana de 12 semanas)', { font: { bold: true } })
+      cell(`B${l0}`, 'Bajo', RISK_EXCEL.bajo)
+      cell(`D${l0}`, 'Medio', RISK_EXCEL.medio)
+      cell(`F${l0}`, 'Crítico', RISK_EXCEL.critico)
+
+      ws.autoFilter = { from: 'A7', to: `H${7 + rows.length}` }
+      ;[24, 17, 10, 24, 18, 42, 22, 15].forEach((w, i) => {
+        ws.getColumn(i + 1).width = w
+      })
+      ws.getColumn(1).numFmt = '@'
+      ws.getColumn(3).numFmt = '0.0'
+      ws.getColumn(8).numFmt = '0.0'
+
+      const fileName = `matriz_predictiva_${new Date().toISOString().slice(0, 10)}.xlsx`
+      const buffer = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+      toast(`Matriz Excel descargada (${rows.length} máquinas)`)
+    } catch (err) {
+      console.error(err)
+      toast('No se pudo generar el archivo Excel.', 'error')
+    }
   }
 
   return (
@@ -130,7 +231,13 @@ export default function Predicciones() {
         title="Predicciones de falla"
         subtitle="Riesgo y tendencia del IPM de los equipos críticos de la línea, calculados con el motor predictivo."
       >
-        <UploadExcelButton onFinished={refresh} />
+        <UploadExcelButton
+          onFinished={() => {
+            setRange(defaultTimeRange(today))
+            refresh()
+            periods.refresh()
+          }}
+        />
       </PageHeader>
 
       <p className="-mt-2 flex items-start gap-2 text-xs text-ink-500 max-w-3xl">
@@ -196,13 +303,18 @@ export default function Predicciones() {
               <span className="rounded-full bg-ink-50 text-ink-700 text-xs font-medium px-2.5 py-1">{rows.length} de {all.length} máquinas</span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs text-ink-500">Datos de {resolved.label}</span>
+              <span className="text-xs text-ink-500">
+                {snapshot
+                  ? `Matriz al cierre del ${fmtDateIntl(new Date(`${hasta}T00:00:00`))}`
+                  : 'Matriz de la última ejecución del motor'}
+              </span>
+              {loading && data ? <span className="text-xs text-ink-400 animate-pulse">recalculando…</span> : null}
               <button
                 type="button"
-                onClick={exportCSV}
+                onClick={exportXlsx}
                 className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 hover:bg-neutral-50 px-3.5 py-2 text-sm font-medium text-ink-700"
               >
-                <Download className="size-4" /> Descargar CSV
+                <Download className="size-4" /> Descargar Excel
               </button>
             </div>
           </div>
@@ -212,8 +324,25 @@ export default function Predicciones() {
               <thead className="bg-neutral-50 text-left text-xs font-semibold text-ink-500">
                 <tr>
                   <th scope="col" className="px-5 py-3">Máquina</th>
-                  <th scope="col" className="px-5 py-3">Nivel de riesgo</th>
-                  <th scope="col" className="px-5 py-3">Probabilidad / pronóstico</th>
+                  <th scope="col" className="px-5 py-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      Nivel de riesgo
+                      <InfoTip title="¿Cómo se mide el nivel de riesgo?">
+                        El nivel de riesgo y su semáforo (bajo, medio, crítico) se calculan a partir del IPM,
+                        el índice predictivo de mantenimiento, sobre la ventana de las últimas 12 semanas.
+                      </InfoTip>
+                    </span>
+                  </th>
+                  <th scope="col" className="px-5 py-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      Probabilidad / pronóstico
+                      <InfoTip title="¿Qué significa la probabilidad?">
+                        Probabilidad de falla estimada según la máquina: próximo turno (Llenadora y Empacadora)
+                        o 7 días operativos (Envolvedora). Para la Paletizadora se muestra el pronóstico semanal
+                        en fallas por semana.
+                      </InfoTip>
+                    </span>
+                  </th>
                   <th scope="col" className="px-5 py-3">Tendencia</th>
                   <th scope="col" className="px-5 py-3">Últimos datos</th>
                   <th scope="col" className="px-5 py-3">IPM</th>
@@ -294,6 +423,16 @@ export default function Predicciones() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 border-t border-neutral-200 text-xs text-ink-500">
+            <span className="font-medium text-ink-700">Semáforo del IPM:</span>
+            {Object.entries(RISK_LEVELS).map(([k, level]) => (
+              <span key={k} className="inline-flex items-center gap-1.5">
+                <span className={`size-2 rounded-full ${level.dot}`} />
+                {level.label}
+              </span>
+            ))}
           </div>
 
           <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-200 text-xs text-ink-500">

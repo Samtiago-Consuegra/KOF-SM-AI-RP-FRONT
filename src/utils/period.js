@@ -6,6 +6,7 @@ export const PERIOD_OPTIONS = [
   { value: 'hoy', label: 'Hoy' },
   { value: 'semana', label: 'Última semana' },
   { value: 'mes', label: 'Mes' },
+  { value: 'meses', label: 'Meses' },
 ]
 
 export const monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -21,6 +22,8 @@ export const defaultTimeRange = (today = new Date()) => ({
   month: monthKey(today),
   from: null,
   to: null,
+  fromMonth: null,
+  toMonth: null,
 })
 
 // Inicio/fin de un mes 'YYYY-MM'
@@ -38,6 +41,21 @@ const isoList = (fromISO, toISO) => {
 }
 
 const clampISO = (iso, minISO, maxISO) => (iso < minISO ? minISO : iso > maxISO ? maxISO : iso)
+
+const validMonth = (key) => typeof key === 'string' && /^\d{4}-\d{2}$/.test(key)
+
+const monthLabel = (key) => {
+  const [y, m] = key.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+}
+
+const monthsRangeLabel = (a, b) => {
+  if (a === b) return monthLabel(a)
+  const [y1] = a.split('-')
+  const [y2] = b.split('-')
+  if (y1 === y2) return `${monthLabel(a).split(' de ')[0]} a ${monthLabel(b)}`
+  return `${monthLabel(a)} a ${monthLabel(b)}`
+}
 
 const labelFor = (list, mode) => {
   if (mode === 'hoy') return 'hoy'
@@ -70,6 +88,7 @@ export function resolveTimeRange(range, today = new Date(), bounds = {}) {
 
   let mode = range.period
   let list
+  let label
 
   if (mode === 'mes') {
     const from = range.from ? clampISO(range.from, minISO, maxISO) : null
@@ -84,6 +103,18 @@ export function resolveTimeRange(range, today = new Date(), bounds = {}) {
       const mEnd = clampISO(endISO, minISO, maxISO)
       list = isoList(mStart, mEnd >= mStart ? mEnd : mStart)
     }
+  } else if (mode === 'meses') {
+    // Rango de meses (junio - septiembre): desde el primer día del mes inicial
+    // hasta el último del mes final, recortado a los límites reales de los datos.
+    const firstKey = monthKey(fromISODate(minISO))
+    const lastKey = monthKey(fromISODate(maxISO))
+    const fromKey = validMonth(range.fromMonth) ? range.fromMonth : firstKey
+    const toKey = validMonth(range.toMonth) ? range.toMonth : lastKey
+    const [a, b] = toKey < fromKey ? [toKey, fromKey] : [fromKey, toKey]
+    const mStart = clampISO(monthBounds(a).startISO, minISO, maxISO)
+    const mEnd = clampISO(monthBounds(b).endISO, minISO, maxISO)
+    list = isoList(mStart, mEnd >= mStart ? mEnd : mStart)
+    label = monthsRangeLabel(a, b)
   } else if (mode === 'semana') {
     // "Última semana" son los 7 días hasta hoy, no hasta el último dato.
     const todayISO = toISODate(day)
@@ -107,9 +138,10 @@ export function resolveTimeRange(range, today = new Date(), bounds = {}) {
     start,
     end,
     singleDay: days === 1,
-    label: labelFor(list, mode),
+    label: label ?? labelFor(list, mode),
     seedKey: `${mode}-${start}-${end}`,
   }
 }
 
-export const timeRangeKey = (range) => `${range.period}-${range.month}-${range.from ?? ''}-${range.to ?? ''}`
+export const timeRangeKey = (range) =>
+  `${range.period}-${range.month}-${range.fromMonth ?? ''}-${range.toMonth ?? ''}-${range.from ?? ''}-${range.to ?? ''}`
