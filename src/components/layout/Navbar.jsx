@@ -2,18 +2,25 @@ import { CalendarDays, Menu } from 'lucide-react'
 import Logo from './Logo.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
 import { fmtDateLong } from '../../utils/format.js'
+import ccFemsa from '../../assets/cc-femsa.svg'
 
 export default function Navbar({ onMenu }) {
   const now = new Date()
   const today = fmtDateLong(now)
   const short = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/90 backdrop-blur border-b border-neutral-200">
+    <header className="sticky top-0 z-30 h-16 bg-white/90 backdrop-blur border-b border-neutral-200 relative">
       <div className="h-full flex items-center gap-3 px-4 lg:px-6">
         <button type="button" onClick={onMenu} className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-neutral-100" aria-label="Abrir menú">
           <Menu className="size-5" />
         </button>
         <div className="lg:w-60 shrink-0"><Logo /></div>
+
+        <img
+          src={ccFemsa}
+          alt="CC-FEMSA"
+          className="pointer-events-none select-none absolute left-1/2 top-1/2 h-11 w-auto -translate-x-1/2 -translate-y-1/2 hidden lg:block"
+        />
 
         <div className="ml-auto flex items-center gap-4">
           <p className="flex items-center gap-2 rounded-full bg-neutral-100 px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm text-ink-700">
