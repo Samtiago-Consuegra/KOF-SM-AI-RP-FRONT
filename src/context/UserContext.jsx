@@ -1,32 +1,86 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { clearAuthToken, getAuthToken } from '../api/client'
+import { onGetMe } from '../services/authService'
 
 const UserContext = createContext(null)
 
-const DEFAULT_USER = {
-  name: 'Ing. Carlos Mendoza',
-  role: 'Supervisor de Planta',
-  email: 'carlos.mendoza@kof.com.mx',
-  photo: null, // se reemplaza cuando el usuario sube una foto
-}
-
 export function UserProvider({ children }) {
-  const [user, setUser] = useState(DEFAULT_USER)
-  const [loggedIn, setLoggedIn] = useState(true)
+  const [user, setUser] = useState(null)
+  const [loggedIn, setLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  // Libera la URL temporal de la foto anterior al cambiarla
-  useEffect(() => () => { if (user.photo) URL.revokeObjectURL(user.photo) }, [user.photo])
+  useEffect(() => {
+    let ignore = false
+    const init = async () => {
+      const token = getAuthToken()
+      if (!token) {
+        if (!ignore) {
+          setUser(null)
+          setLoggedIn(false)
+          setLoading(false)
+        }
+        return
+      }
+      try {
+        const me = await onGetMe()
+        if (ignore) return
+        setUser({
+          id: me.id,
+          name: me.full_name || me.email,
+          email: me.email,
+          role: me.role || 'Usuario',
+          photo: null,
+        })
+        setLoggedIn(true)
+      } catch {
+        if (ignore) return
+        clearAuthToken()
+        setUser(null)
+        setLoggedIn(false)
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+    init()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (user?.photo) URL.revokeObjectURL(user.photo)
+    },
+    [user?.photo]
+  )
 
   const updatePhoto = (file) => {
     if (!file || !file.type.startsWith('image/')) return false
-    setUser((u) => ({ ...u, photo: URL.createObjectURL(file) }))
+    setUser((u) => (u ? { ...u, photo: URL.createObjectURL(file) } : u))
     return true
   }
-  const removePhoto = () => setUser((u) => ({ ...u, photo: null }))
-  const logout = () => setLoggedIn(false)
-  const login = () => setLoggedIn(true)
+  const removePhoto = () => setUser((u) => (u ? { ...u, photo: null } : u))
+  const logout = () => {
+    clearAuthToken()
+    setUser(null)
+    setLoggedIn(false)
+  }
+  const login = (userData) => {
+    if (userData) {
+      setUser({
+        id: userData.id,
+        name: userData.full_name || userData.name || userData.email,
+        email: userData.email,
+        role: userData.role || 'Usuario',
+        photo: null,
+      })
+    }
+    setLoggedIn(true)
+  }
+  const setAuthUser = (userData) => login(userData)
 
   return (
-    <UserContext.Provider value={{ user, loggedIn, updatePhoto, removePhoto, logout, login }}>
+    <UserContext.Provider value={{ user, loggedIn, loading, updatePhoto, removePhoto, logout, login, setAuthUser }}>
       {children}
     </UserContext.Provider>
   )

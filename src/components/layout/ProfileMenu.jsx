@@ -79,7 +79,15 @@ export default function ProfileMenu() {
             <UserRound className="size-4 text-ink-500" /> Ver perfil
           </button>
           <div className="h-px bg-neutral-200 my-1" />
-          <button role="menuitem" className={`${item} text-primary-600 hover:bg-primary-50`} onClick={logout}>
+          <button
+            role="menuitem"
+            className={`${item} text-primary-600 hover:bg-primary-50`}
+            onClick={() => {
+              logout()
+              setOpen(false)
+              navigate('/login', { replace: true })
+            }}
+          >
             <LogOut className="size-4" /> Cerrar sesión
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />

@@ -6,6 +6,44 @@
 
 const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')
 
+const TOKEN_KEY = 'kof_smart_token'
+
+export function getAuthToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setAuthToken(token, remember = true) {
+  try {
+    if (!token) {
+      localStorage.removeItem(TOKEN_KEY)
+      sessionStorage.removeItem(TOKEN_KEY)
+      return
+    }
+    if (remember) {
+      localStorage.setItem(TOKEN_KEY, token)
+      sessionStorage.removeItem(TOKEN_KEY)
+    } else {
+      sessionStorage.setItem(TOKEN_KEY, token)
+      localStorage.removeItem(TOKEN_KEY)
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function clearAuthToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 export class ApiError extends Error {
   constructor(message, status) {
     super(message)
@@ -39,16 +77,38 @@ export function buildQuery(params = {}) {
   return s ? `?${s}` : ''
 }
 
-async function request(path, { params, signal, body, headers } = {}) {
+async function request(path, { params, signal, body, headers, auth = true } = {}) {
   let res
   try {
-    res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
-      method: body ? 'POST' : 'GET',
-      // FormData lleva su propio Content-Type (con el boundary): no lo fijamos a mano.
-      headers: { Accept: 'application/json', ...(body ? {} : headers) },
-      body,
-      signal,
-    })
+    const token = auth ? getAuthToken() : null
+    const reqHeaders = { Accept: 'application/json', ...(headers || {}) }
+    if (token) {
+      reqHeaders.Authorization = `Bearer ${token}`
+    }
+    // FormData lleva su propio Content-Type (con el boundary): no lo fijamos a mano.
+    if (body instanceof FormData) {
+      res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
+        method: body ? 'POST' : 'GET',
+        headers: reqHeaders,
+        body,
+        signal,
+      })
+    } else if (body !== undefined && body !== null) {
+      reqHeaders['Content-Type'] = reqHeaders['Content-Type'] || 'application/json'
+      res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: typeof body === 'string' ? body : JSON.stringify(body),
+        signal,
+      })
+    } else {
+      res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
+        method: 'GET',
+        headers: reqHeaders,
+        body,
+        signal,
+      })
+    }
   } catch (err) {
     if (err.name === 'AbortError') throw err
     throw new ApiError('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0)
@@ -61,6 +121,8 @@ async function request(path, { params, signal, body, headers } = {}) {
 }
 
 export const apiGet = (path, params, opts) => request(path, { ...opts, params })
+
+export const apiPost = (path, body, opts) => request(path, { ...opts, body })
 
 export const apiUpload = (path, formData, opts) => request(path, { ...opts, body: formData })
 

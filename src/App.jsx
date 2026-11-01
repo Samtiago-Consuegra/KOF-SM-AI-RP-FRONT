@@ -3,15 +3,28 @@ import Layout from './components/layout/Layout.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Predicciones from './pages/Predicciones.jsx'
 import Proximamente from './pages/Proximamente.jsx'
-import SesionCerrada from './pages/SesionCerrada.jsx'
+import LoginPage from './pages/auth/LoginPage.jsx'
 import { useUser } from './context/UserContext.jsx'
 
 export default function App() {
-  const { loggedIn } = useUser()
-  if (!loggedIn) return <SesionCerrada />
+  const { loggedIn, loading } = useUser()
+
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-neutral-50 text-sm text-ink-500">Cargando...</div>
+  }
+
+  if (!loggedIn) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    )
+  }
 
   return (
     <Routes>
+      <Route path="/login" element={<Navigate to="/dashboard" replace />} />
       <Route element={<Layout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />

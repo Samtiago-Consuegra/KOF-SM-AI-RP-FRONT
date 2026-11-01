@@ -2,7 +2,8 @@ import { CalendarDays, Menu } from 'lucide-react'
 import Logo from './Logo.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
 import { fmtDateLong } from '../../utils/format.js'
-import ccFemsa from '../../assets/cc-femsa.svg'
+import cocaCola from '../../assets/coca-cola.svg'
+import femsa from '../../assets/femsa.svg'
 
 export default function Navbar({ onMenu }) {
   const now = new Date()
@@ -16,11 +17,10 @@ export default function Navbar({ onMenu }) {
         </button>
         <div className="lg:w-60 shrink-0"><Logo /></div>
 
-        <img
-          src={ccFemsa}
-          alt="CC-FEMSA"
-          className="pointer-events-none select-none absolute left-1/2 top-1/2 h-11 w-auto -translate-x-1/2 -translate-y-1/2 hidden lg:block"
-        />
+        <div className="pointer-events-none select-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden lg:flex items-center">
+          <img src={cocaCola} alt="Coca-Cola" className="h-12 w-auto" />
+          <img src={femsa} alt="FEMSA" className="h-12 w-auto" />
+        </div>
 
         <div className="ml-auto flex items-center gap-4">
           <p className="flex items-center gap-2 rounded-full bg-neutral-100 px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm text-ink-700">
