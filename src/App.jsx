@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/layout/Layout.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Predicciones from './pages/Predicciones.jsx'
+import Cumplimiento from './pages/Cumplimiento.jsx'
+import HistoriaClinica from './pages/HistoriaClinica.jsx'
 import Proximamente from './pages/Proximamente.jsx'
 import LoginPage from './pages/auth/LoginPage.jsx'
 import { useUser } from './context/UserContext.jsx'
@@ -29,6 +31,8 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/predicciones" element={<Predicciones />} />
+        <Route path="/cumplimiento" element={<Cumplimiento />} />
+        <Route path="/historia-clinica" element={<HistoriaClinica />} />
         <Route path="/mantenimiento" element={<Proximamente title="Planes de mantenimiento" />} />
         <Route path="/maquinas" element={<Proximamente title="Máquinas" />} />
         <Route path="/historial" element={<Proximamente title="Historial de Excel" />} />

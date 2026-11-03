@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Activity, CalendarCog, FileSpreadsheet, LayoutDashboard, LogOut, Factory, UserRound, X } from 'lucide-react'
+import { Activity, CalendarCog, ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, LogOut, Factory, UserRound, X } from 'lucide-react'
 import Avatar from '../ui/Avatar.jsx'
 import Logo from './Logo.jsx'
 import { useUser } from '../../context/UserContext.jsx'
@@ -8,6 +8,8 @@ import { useMachines } from '../../hooks/useMachines.js'
 const ITEMS = [
   { to: '/dashboard', label: 'Dashboard (EDA)', icon: LayoutDashboard },
   { to: '/predicciones', label: 'Predicciones de falla', icon: Activity },
+  { to: '/cumplimiento', label: 'Cumplimiento', icon: ClipboardCheck },
+  { to: '/historia-clinica', label: 'Historia clínica', icon: FileText },
   { to: '/mantenimiento', label: 'Planes de mantenimiento', icon: CalendarCog },
   { to: '/maquinas', label: 'Máquinas', icon: Factory, countBadge: true },
   { to: '/historial', label: 'Historial de Excel', icon: FileSpreadsheet },
