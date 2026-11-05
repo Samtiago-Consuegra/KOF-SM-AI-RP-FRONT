@@ -5,6 +5,7 @@ import { Check, ChevronDown } from 'lucide-react'
 const BUTTON_VARIANTS = {
   default: 'border border-neutral-200 bg-neutral-50 hover:bg-white px-3.5 py-2.5',
   toolbar: 'h-10 border border-neutral-200 bg-white hover:bg-neutral-100 px-3.5',
+  toolbarNeutral: 'h-10 border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 px-3.5',
 }
 
 /**

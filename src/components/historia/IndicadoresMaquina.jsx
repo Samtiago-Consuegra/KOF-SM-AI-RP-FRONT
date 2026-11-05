@@ -1,73 +1,104 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceDot } from 'recharts'
+import useCountUp from '../../hooks/useCountUp.js'
+import ParosPorMesChart from './ParosPorMesChart.jsx'
 
-export default function IndicadoresMaquina({ indicadores, parosPorMes, loading }) {
-  if (loading || !indicadores) {
-    return (
-      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="h-6 w-48 animate-pulse rounded bg-neutral-100" />
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[1,2,3,4,5,6].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-neutral-50" />)}
-        </div>
-      </div>
-    )
-  }
-  
-  const cards = [
-    { key: 'fallas', label: 'FALLAS', value: indicadores.fallas, higherBetter: false },
-    { key: 'minutosParo', label: 'MINUTOS DE PARO', value: indicadores.minutosParo, higherBetter: false },
-    { key: 'mtbf', label: 'MTBF', value: indicadores.mtbf, unit: 'h', higherBetter: true },
-    { key: 'mttr', label: 'MTTR', value: indicadores.mttr, unit: 'min', higherBetter: false },
-    { key: 'disponibilidad', label: 'DISPONIBILIDAD', value: indicadores.disponibilidad, unit: '%', higherBetter: true },
-    { key: 'cumplimientoPlan', label: 'CUMPLIMIENTO PLAN', value: indicadores.cumplimientoPlan, unit: '%', higherBetter: true }
-  ]
-  
+function ValorAnimado({ value, decimals = 0, suffix = '' }) {
+  const animado = useCountUp(Math.round((value ?? 0) * (decimals ? 10 : 1)))
+  const shown = decimals ? (animado / 10).toFixed(1) : animado
+  return <>{shown}{suffix}</>
+}
+
+function IndicadorCard({ label, value, decimals, suffix, captionKey, captionFn, promedio, higherBetter }) {
+  const favorable = value === promedio ? null : (higherBetter ? value > promedio : value < promedio)
+  const Icon = favorable === false ? TrendingDown : TrendingUp
+  const iconCls = favorable === false ? 'text-primary-500' : 'text-tertiary-600'
+  const esMtbf = captionKey === 'mtbf'
+  const mtbfTexto = esMtbf && !value ? 'Sin fallas en el periodo' : null
+
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+    <div className="rounded-xl bg-neutral-50 p-4 flex flex-col justify-between min-h-[120px]">
+      <div>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{label}</p>
+        <p className="mt-1 text-2xl font-bold text-ink-900 tabular-nums">
+          {esMtbf && !value ? '–' : <ValorAnimado value={value} decimals={decimals} suffix={suffix} />}
+        </p>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-xs text-ink-500">
+          {mtbfTexto ?? captionFn(promedio)}
+        </span>
+        <Icon className={`size-4 shrink-0 ${iconCls}`} aria-hidden="true" />
+      </div>
+    </div>
+  )
+}
+
+function IndicadoresSkeleton() {
+  return (
+    <div className="h-full rounded-2xl border border-neutral-200 bg-white shadow-sm">
       <div className="p-6">
-        <h3 className="text-lg font-semibold text-ink-900">Indicadores de la máquina</h3>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card) => {
-            const isBetter = card.higherBetter ? card.value >= indicadores.promedioLinea : card.value <= indicadores.promedioLinea
-            const Icon = isBetter ? TrendingUp : TrendingDown
-            return (
-              <div key={card.key} className="rounded-xl bg-neutral-50 p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{card.label}</p>
-                <p className="mt-1 text-2xl font-bold text-ink-900">{card.value}{card.unit || ''}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-xs text-ink-500">Promedio línea: {indicadores.promedioLinea}</span>
-                  <Icon className={`size-4 ${isBetter ? 'text-tertiary-600' : 'text-primary-500'}`} />
-                </div>
-              </div>
-            )
-          })}
+        <div className="h-6 w-56 animate-pulse rounded bg-neutral-100" />
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-[120px] animate-pulse rounded-xl bg-neutral-50" />)}
         </div>
+        <div className="mt-6 h-[280px] animate-pulse rounded-xl bg-neutral-50" />
+      </div>
+    </div>
+  )
+}
+
+const CAPTIONS = {
+  promedio: (l) => <span>Promedio línea: {l}</span>,
+}
+
+export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, alcance }) {
+  if (loading || !indicadores || !parosPorMes) return <IndicadoresSkeleton />
+
+  const { maquina, sistemaNombre, componenteNombre } = alcance ?? {}
+  const tituloIndicadores = componenteNombre
+    ? (sistemaNombre
+        ? `Indicadores · ${sistemaNombre} · ${componenteNombre}`
+        : `Indicadores · ${componenteNombre}`)
+    : sistemaNombre
+      ? `Indicadores · ${sistemaNombre}`
+      : 'Indicadores de la máquina'
+
+  const cards = [
+    { label: 'Fallas', key: 'fallas', value: indicadores.fallas, higherBetter: false },
+    { label: 'Minutos de paro', key: 'minutosParo', value: indicadores.minutosParo, suffix: ' min', higherBetter: false },
+    { label: 'MTBF', key: 'mtbf', value: indicadores.mtbf, suffix: ' h', higherBetter: true },
+    { label: 'MTTR', key: 'mttr', value: indicadores.mttr, suffix: ' min', higherBetter: false },
+    { label: 'Disponibilidad', key: 'disponibilidad', value: indicadores.disponibilidad, decimals: 1, suffix: '%', higherBetter: true },
+    { label: 'Cumplimiento plan', key: 'cumplimientoPlan', value: indicadores.cumplimientoPlan, suffix: '%', higherBetter: true },
+  ]
+
+  return (
+    <div className="h-full rounded-2xl border border-neutral-200 bg-white shadow-sm">
+      <div className="p-6">
+        <h2 className="text-lg font-semibold text-ink-900">{tituloIndicadores}</h2>
+
+        {/* 6 stat cards: 3×2 en desktop, 2 en tablet, 1 en móvil */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((c) => (
+            <IndicadorCard
+              key={c.key}
+              label={c.label}
+              value={c.value}
+              decimals={c.decimals}
+              suffix={c.suffix}
+              promedio={indicadores.promedioLinea}
+              higherBetter={c.higherBetter}
+              captionFn={(promedio) => CAPTIONS.promedio(promedio)}
+            />
+          ))}
+        </div>
+
+        {/* Gráfica de paros por mes, ampliable */}
         <div className="mt-6">
-          <h4 className="text-sm font-semibold text-ink-900">Paros por mes</h4>
-          <div className="mt-3 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={parosPorMes}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                <Tooltip />
-                <Legend />
-                <Bar yAxisId="left" dataKey="paros" fill="#F40000" name="Paros" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="minutosParo" stroke="#111827" name="Minutos de paro" strokeWidth={2} />
-                {parosPorMes.map((entry, idx) => 
-                  entry.mantenimientos?.length > 0 ? (
-                    <ReferenceDot key={idx} yAxisId="left" x={entry.mes} y={entry.paros} r={6} fill="#0D9488" stroke="#fff" strokeWidth={2} />
-                  ) : null
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-ink-500">
-            <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary-500" /> Paros</div>
-            <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-ink-900" /> Minutos de paro</div>
-            <div className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-tertiary-600" /> Mantenimiento realizado</div>
-          </div>
+          <ParosPorMesChart
+            data={parosPorMes}
+            contexto={`${maquina}${sistemaNombre ? ` · ${sistemaNombre}` : ''}${componenteNombre ? ` · ${componenteNombre}` : ''} · Últimos 12 meses`}
+          />
         </div>
       </div>
     </div>

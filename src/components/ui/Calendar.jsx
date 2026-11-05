@@ -155,7 +155,7 @@ function RangeCalendar({ from, to, month, onChange, onMonthChange, min, max, gri
 }
 
 /** Control de fecha que abre el popover de selección de rango. */
-export default function DateRangePicker({ from, to, month, onChange, onMonthChange, min, max, label = 'Fecha' }) {
+export default function DateRangePicker({ from, to, month, onChange, onMonthChange, min, max, label = 'Fecha', tone = 'white' }) {
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState({ align: 'left', side: 'bottom' })
   const ref = useRef(null)
@@ -216,7 +216,11 @@ export default function DateRangePicker({ from, to, month, onChange, onMonthChan
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`inline-flex h-10 items-center gap-2 rounded-xl border text-sm transition-colors ${
-          active ? 'border-primary-300 bg-primary-50 pl-3.5 pr-9 text-primary-700' : 'border-neutral-200 bg-white px-3.5 text-ink-700 hover:border-neutral-300'
+          active
+            ? 'border-primary-300 bg-primary-50 pl-3.5 pr-9 text-primary-700'
+            : tone === 'neutral'
+              ? 'border-neutral-200 bg-neutral-50 px-3.5 text-ink-700 hover:bg-neutral-100'
+              : 'border-neutral-200 bg-white px-3.5 text-ink-700 hover:border-neutral-300'
         }`}
       >
         <CalendarDays className="size-4 shrink-0" />

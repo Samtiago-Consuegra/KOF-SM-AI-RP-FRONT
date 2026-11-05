@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import Predicciones from './pages/Predicciones.jsx'
 import Cumplimiento from './pages/Cumplimiento.jsx'
 import HistoriaClinica from './pages/HistoriaClinica.jsx'
+import Mantenimiento from './pages/Mantenimiento.jsx'
 import Proximamente from './pages/Proximamente.jsx'
 import LoginPage from './pages/auth/LoginPage.jsx'
 import { useUser } from './context/UserContext.jsx'
@@ -33,7 +34,7 @@ export default function App() {
         <Route path="/predicciones" element={<Predicciones />} />
         <Route path="/cumplimiento" element={<Cumplimiento />} />
         <Route path="/historia-clinica" element={<HistoriaClinica />} />
-        <Route path="/mantenimiento" element={<Proximamente title="Planes de mantenimiento" />} />
+        <Route path="/mantenimiento" element={<Mantenimiento />} />
         <Route path="/maquinas" element={<Proximamente title="Máquinas" />} />
         <Route path="/historial" element={<Proximamente title="Historial de Excel" />} />
         <Route path="/perfil" element={<Proximamente title="Perfil" />} />

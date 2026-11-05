@@ -8,9 +8,9 @@ import { useMachines } from '../../hooks/useMachines.js'
 const ITEMS = [
   { to: '/dashboard', label: 'Dashboard (EDA)', icon: LayoutDashboard },
   { to: '/predicciones', label: 'Predicciones de falla', icon: Activity },
+  { to: '/mantenimiento', label: 'Planes de mantenimiento', icon: CalendarCog },
   { to: '/cumplimiento', label: 'Cumplimiento', icon: ClipboardCheck },
   { to: '/historia-clinica', label: 'Historia clínica', icon: FileText },
-  { to: '/mantenimiento', label: 'Planes de mantenimiento', icon: CalendarCog },
   { to: '/maquinas', label: 'Máquinas', icon: Factory, countBadge: true },
   { to: '/historial', label: 'Historial de Excel', icon: FileSpreadsheet },
   { to: '/perfil', label: 'Perfil', icon: UserRound },
@@ -49,10 +49,9 @@ export default function Sidebar({ open, onClose }) {
                     to={to}
                     onClick={onClose}
                     className={({ isActive }) =>
-                      `relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700 font-semibold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-primary-500'
-                          : 'text-ink-700 hover:bg-neutral-100'
+                      `relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${isActive
+                        ? 'bg-primary-50 text-primary-700 font-semibold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-primary-500'
+                        : 'text-ink-700 hover:bg-neutral-100'
                       }`
                     }
                   >
