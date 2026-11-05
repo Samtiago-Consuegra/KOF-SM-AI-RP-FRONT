@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Pencil, Send, AlertTriangle } from 'lucide-react'
 import { enviarTareaAParada } from '../../services/mantenimientoService.js'
 import ProgramarParadaModal from './ProgramarParadaModal.jsx'
@@ -9,6 +10,21 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
   const [paradaId, setParadaId] = useState(tarea?.paradaSugerida?.existe ? tarea.paradaSugerida.id : '')
   const [showDlg, setShowDlg] = useState(false)
   const [showProg, setShowProg] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setEdit(false)
+    setParadaId(tarea?.paradaSugerida?.existe ? tarea.paradaSugerida.id : '')
+    setShowDlg(false)
+    setShowProg(false)
+  }, [open, tarea])
+
+  useEffect(() => {
+    if (!open || showDlg || showProg) return
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, showDlg, showProg, onClose])
 
   if (!open || !tarea) return null
 
@@ -35,13 +51,18 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
     setShowProg(true)
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className="relative w-full max-w-[520px] bg-white rounded-2xl border border-neutral-200 shadow-xl mx-4">
+      <style>{`
+        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .modal-anim, .modal-fade { animation: none !important; } }
+      `}</style>
+      <div className="modal-fade absolute inset-0 bg-ink-900/60 backdrop-blur-sm" style={{ animation: 'fade-in 200ms ease-out' }} onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-labelledby="detalle-tarea-title" className="modal-anim relative w-full max-w-[520px] bg-white rounded-2xl border border-neutral-200 shadow-xl mx-4" style={{ animation: 'modal-in 220ms cubic-bezier(0.22,1,0.36,1)' }}>
         <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-          <h2 className="text-lg font-semibold text-ink-900">Detalle de la tarea</h2>
-          <button onClick={onClose} aria-label="Cerrar" className="h-8 w-8 grid place-items-center rounded-lg hover:bg-neutral-100"><X className="size-4" /></button>
+          <h2 id="detalle-tarea-title" className="text-lg font-semibold text-ink-900">Detalle de la tarea</h2>
+          <button onClick={onClose} aria-label="Cerrar" className="h-8 w-8 grid place-items-center rounded-lg hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><X className="size-4" /></button>
         </div>
         <div className="p-4 space-y-2">
           <div className="grid grid-cols-2 gap-2">
@@ -57,7 +78,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           {edit && (
             <div>
               <label className="text-xs text-ink-500">Enviar a parada</label>
-              <select value={paradaId} onChange={(e)=>setParadaId(e.target.value)} className="w-full h-9 rounded-lg border border-neutral-200 px-2 text-sm">
+              <select value={paradaId} onChange={(e)=>setParadaId(e.target.value)} className="w-full h-9 rounded-lg border border-neutral-200 px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400">
                 <option value="">Seleccionar parada</option>
                 {disponibles.map((p)=><option key={p.id} value={p.id}>{p.titulo} · {p.fecha} {p.horaInicio}-{p.horaFin}</option>)}
               </select>
@@ -65,15 +86,15 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           )}
         </div>
         <div className="flex items-center justify-between p-4 border-t border-neutral-200">
-          <button onClick={()=>setEdit(!edit)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-neutral-200 px-3 text-sm hover:bg-neutral-50"><Pencil className="size-4" /> Personalizar</button>
-          <button onClick={enviar} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-3 text-sm text-white hover:bg-primary-600"><Send className="size-4" /> Enviar a la parada</button>
+          <button onClick={()=>setEdit(!edit)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-neutral-200 px-3 text-sm hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><Pencil className="size-4" /> Personalizar</button>
+          <button onClick={enviar} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-3 text-sm text-white hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><Send className="size-4" /> Enviar a la parada</button>
         </div>
       </div>
 
       {showDlg && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-ink-900/60" />
-          <div className="relative w-full max-w-[420px] bg-white rounded-2xl border border-neutral-200 shadow-xl mx-4">
+          <div className="modal-fade absolute inset-0 bg-ink-900/60" style={{ animation: 'fade-in 200ms ease-out' }} onClick={()=>setShowDlg(false)} />
+          <div className="modal-anim relative w-full max-w-[420px] bg-white rounded-2xl border border-neutral-200 shadow-xl mx-4" style={{ animation: 'modal-in 220ms cubic-bezier(0.22,1,0.36,1)' }}>
             <div className="p-4 flex items-start gap-3">
               <div className="h-9 w-9 rounded-full bg-primary-50 grid place-items-center"><AlertTriangle className="size-4 text-primary-500" /></div>
               <div>
@@ -82,8 +103,8 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 p-4 border-t border-neutral-200">
-              <button onClick={()=>setShowDlg(false)} className="h-9 px-3 rounded-lg border border-neutral-200 text-sm hover:bg-neutral-50">Cerrar</button>
-              <button onClick={crear} className="h-9 px-3 rounded-lg bg-primary-500 text-white text-sm hover:bg-primary-600">Crear parada</button>
+              <button onClick={()=>setShowDlg(false)} className="h-9 px-3 rounded-lg border border-neutral-200 text-sm hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400">Cerrar</button>
+              <button onClick={crear} className="h-9 px-3 rounded-lg bg-primary-500 text-white text-sm hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400">Crear parada</button>
             </div>
           </div>
         </div>
@@ -106,7 +127,6 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           const sis = (JERARQUIA[tarea.maquina] || []).find(s => s.nombre === tarea.sistema)
           if (sis) sistemaId = sis.id
           else {
-            // try to find
             for (const s of (JERARQUIA[tarea.maquina] || [])) {
               if (s.componentes?.some(c => c.nombre === tarea.componente)) { sistemaId = s.id; sistemaNombre = s.nombre; break }
             }
@@ -134,6 +154,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           }
         })()}
       />
-    </div>
+    </div>,
+    document.body
   )
 }
