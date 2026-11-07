@@ -93,3 +93,53 @@ export function getRangeForWeek(week) {
 export function getRangeForMonth(month) {
   return { type: 'month', from: month.start, to: month.end, label: month.rangeLabel }
 }
+
+/**
+ * Siguiente día hábil (lunes a viernes) a partir de la fecha más tardía
+ * entre la fecha recibida y hoy. Viernes, sábado y domingo saltan al lunes.
+ * Nunca devuelve una fecha anterior a hoy.
+ */
+export function siguienteDiaHabil(fecha) {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+
+  let base
+  if (fecha instanceof Date) {
+    base = new Date(fecha)
+  } else if (typeof fecha === 'string' && fecha) {
+    base = new Date(fecha.length <= 10 ? `${fecha}T00:00:00` : fecha)
+  } else {
+    base = new Date(hoy)
+  }
+  if (Number.isNaN(base.getTime())) base = new Date(hoy)
+  base.setHours(0, 0, 0, 0)
+
+  const referencia = base.getTime() > hoy.getTime() ? base : hoy
+  const siguiente = new Date(referencia)
+  siguiente.setDate(siguiente.getDate() + 1)
+  while (siguiente.getDay() === 0 || siguiente.getDay() === 6) {
+    siguiente.setDate(siguiente.getDate() + 1)
+  }
+  return siguiente
+}
+
+/** "lun 09 nov 2026" */
+export function formatFechaHabil(fecha) {
+  const d = fecha instanceof Date ? fecha : new Date(fecha)
+  if (Number.isNaN(d.getTime())) return ''
+  return d
+    .toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+    .replace(/[.,]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** "06:00 – 14:00" a partir de dos ISO locales. */
+export function formatRangoHoras(inicioISO, finISO) {
+  const hora = (iso) => {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '--:--'
+    return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+  }
+  return `${hora(inicioISO)} – ${hora(finISO)}`
+}

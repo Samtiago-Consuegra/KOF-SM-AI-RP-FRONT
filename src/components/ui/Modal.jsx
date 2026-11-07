@@ -1,23 +1,43 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { isTopLayer, pushLayer } from '../../utils/modalLayer.js'
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
-/** Diálogo modal para ver una gráfica ampliada. */
-export default function Modal({ open, onClose, title, subtitle, legend, footer, children, bodyClassName = 'h-[70vh]' }) {
+/** Diálogo modal portalizado con focus trap, Escape y cierre por backdrop. */
+export default function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  legend,
+  footer,
+  children,
+  bodyClassName = 'h-[70vh]',
+  maxWidth = 'max-w-[1440px]',
+}) {
   const panelRef = useRef(null)
   const closeRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  const layerRef = useRef(`modal-${Math.random().toString(36).slice(2)}`)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
+    const id = layerRef.current
     const previous = document.activeElement
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    const popLayer = pushLayer(id)
     closeRef.current?.focus()
 
     const onKey = (e) => {
-      if (e.key === 'Escape') return onClose()
+      if (!isTopLayer(id)) return
+      if (e.key === 'Escape') return onCloseRef.current?.()
       if (e.key !== 'Tab') return
       const items = [...(panelRef.current?.querySelectorAll(FOCUSABLE) ?? [])]
       if (!items.length) return
@@ -29,10 +49,11 @@ export default function Modal({ open, onClose, title, subtitle, legend, footer, 
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
+      popLayer()
       document.body.style.overflow = overflow
       previous?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
@@ -44,7 +65,7 @@ export default function Modal({ open, onClose, title, subtitle, legend, footer, 
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative flex w-full max-w-[1440px] max-h-[calc(100dvh-2rem)] flex-col overflow-y-auto scroll-thin rounded-2xl border border-neutral-200 bg-white shadow-2xl"
+        className={`relative flex w-full ${maxWidth} max-h-[calc(100dvh-2rem)] flex-col overflow-y-auto scroll-thin rounded-2xl border border-neutral-200 bg-white shadow-2xl`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-neutral-100">
           <div className="min-w-0">

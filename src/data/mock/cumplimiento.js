@@ -1,142 +1,515 @@
-// Datos mock coherentes para Cumplimiento
-// Paradas, tareas y relaciones consistentes
+// Datos simulados coherentes para Cumplimiento.
+// Las fechas se calculan respecto a hoy para que los estados sigan siendo válidos
+// con el paso del tiempo. "Vencida" NO se guarda: se deriva en el servicio cuando
+// la hora de fin programada ya pasó y la parada no está Cumplida.
+
+import { siguienteDiaHabil } from '../../utils/weeks.js'
 
 export const MAQUINAS_CRITICAS = ['Llenadora', 'Empacadora', 'Paletizadora', 'Envolvedora']
 
+const pad = (n) => String(n).padStart(2, '0')
+
+function toISODate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function toISO(d) {
+  return `${toISODate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+}
+
+/** Fecha/hora relativa a hoy (offset en días). */
+function isoAt(offsetDays, hour = 8, minute = 0) {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDays)
+  d.setHours(hour, minute, 0, 0)
+  return toISO(d)
+}
+
+/** Siguiente día hábil desde hoy, conservando la hora indicada. */
+function nextBusinessAt(hour = 8, minute = 0) {
+  const d = siguienteDiaHabil(new Date())
+  d.setHours(hour, minute, 0, 0)
+  return toISO(d)
+}
+
+function tarea(id, nombre, componente, completada = false, extra = {}) {
+  return { id, nombre, componente, completada, ...extra }
+}
+
+const REGISTRADA_HOY = isoAt(0, 9, 0)
+const COPIA_INICIO = nextBusinessAt(8, 0)
+const COPIA_FIN = nextBusinessAt(14, 0)
+
 export const PARADAS = [
+  // ── Llenadora ────────────────────────────────────────────────────────────
   {
     id: 'P-001',
     maquina: 'Llenadora',
-    componente: 'Sistema de llenado',
+    sistema: 'Sistema de llenado',
+    componente: 'Válvula de llenado',
+    titulo: 'Cambio de válvulas y calibración de caudal',
     ordenSap: 'SAP-9001',
-    estado: 'Vencida',
-    inicio: '2026-11-03T06:00:00',
-    finProg: '2026-11-03T14:00:00',
+    tipo: 'Preventiva',
+    estadoBase: 'Pendiente',
+    inicio: isoAt(-3, 6, 0),
+    finProg: isoAt(-3, 14, 0),
     finReal: null,
     tareas: [
-      { id: 'T-001', nombre: 'Inspección de válvulas', componente: 'Válvulas', completada: false },
-      { id: 'T-002', nombre: 'Cambio de juntas', componente: 'Juntas', completada: false },
-      { id: 'T-003', nombre: 'Calibración de caudal', componente: 'Sensores', completada: false },
-      { id: 'T-004', nombre: 'Prueba de estanqueidad', componente: 'Conexiones', completada: false }
-    ]
-  },
-  {
-    id: 'P-002',
-    maquina: 'Empacadora',
-    componente: 'Cabezal sellador',
-    ordenSap: 'SAP-9002',
-    estado: 'En ejecución',
-    inicio: '2026-11-05T08:00:00',
-    finProg: '2026-11-05T16:00:00',
-    finReal: null,
-    tareas: [
-      { id: 'T-010', nombre: 'Revisión de resistencias', componente: 'Resistencias', completada: true },
-      { id: 'T-011', nombre: 'Ajuste de presión', componente: 'Neumática', completada: true },
-      { id: 'T-012', nombre: 'Limpieza de cabezal', componente: 'Cabezal', completada: false },
-      { id: 'T-013', nombre: 'Prueba de sellado', componente: 'Sellador', completada: false }
-    ]
-  },
-  {
-    id: 'P-003',
-    maquina: 'Paletizadora',
-    componente: 'Brazo robótico',
-    ordenSap: 'SAP-9003',
-    estado: 'Pendiente',
-    inicio: '2026-11-07T07:00:00',
-    finProg: '2026-11-07T15:00:00',
-    finReal: null,
-    tareas: [
-      { id: 'T-020', nombre: 'Lubricación de ejes', componente: 'Ejes', completada: false },
-      { id: 'T-021', nombre: 'Revisión de baleros', componente: 'Rodamientos', completada: false },
-      { id: 'T-022', nombre: 'Verificación de sensores', componente: 'Sensores', completada: false }
-    ]
-  },
-  {
-    id: 'P-004',
-    maquina: 'Envolvedora',
-    componente: 'Sistema film',
-    ordenSap: 'SAP-9004',
-    estado: 'Vencida',
-    inicio: '2026-10-28T06:00:00',
-    finProg: '2026-10-28T12:00:00',
-    finReal: null,
-    tareas: [
-      { id: 'T-030', nombre: 'Cambio de rodillos', componente: 'Rodillos', completada: false },
-      { id: 'T-031', nombre: 'Ajuste de tensión', componente: 'Tensores', completada: false },
-      { id: 'T-032', nombre: 'Inspección de guía film', componente: 'Guía', completada: true },
-      { id: 'T-033', nombre: 'Prueba de corte', componente: 'Cuchilla', completada: false },
-      { id: 'T-034', nombre: 'Limpieza general', componente: 'General', completada: false }
-    ]
+      tarea('T-001', 'Inspección de válvulas', 'Válvulas'),
+      tarea('T-002', 'Cambio de juntas', 'Juntas'),
+      tarea('T-003', 'Calibración de caudal', 'Sensores'),
+      tarea('T-004', 'Prueba de estanqueidad', 'Conexiones'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
   },
   {
     id: 'P-005',
     maquina: 'Llenadora',
-    componente: 'Bombas',
+    sistema: 'Sistema de llenado',
+    componente: 'Bombas dosificadoras',
+    titulo: 'Revisión de bombas y cambio de sellos',
     ordenSap: 'SAP-9005',
-    estado: 'Pendiente',
-    inicio: '2026-10-30T09:00:00',
-    finProg: '2026-10-30T17:00:00',
+    tipo: 'Preventiva',
+    estadoBase: 'Cumplida',
+    inicio: isoAt(-4, 6, 0),
+    finProg: isoAt(-4, 14, 0),
+    finReal: isoAt(-4, 14, 30),
+    tareas: [
+      tarea('T-040', 'Revisión de bombas', 'Bombas', true),
+      tarea('T-041', 'Cambio de sellos', 'Sellos', true),
+      tarea('T-042', 'Prueba de presión', 'Manómetros', true),
+      tarea('T-043', 'Limpieza de líneas', 'Líneas', true),
+    ],
+    observaciones: 'Se cambiaron los sellos de las cuatro bombas y se validó la presión de trabajo.',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: 100,
+  },
+  {
+    id: 'P-009',
+    maquina: 'Llenadora',
+    sistema: 'Sistema de llenado',
+    componente: 'Boquillas',
+    titulo: 'Ajuste de boquillas y limpieza de tanque',
+    ordenSap: 'SAP-9009',
+    tipo: 'Preventiva',
+    estadoBase: 'Pendiente',
+    inicio: isoAt(1, 6, 0),
+    finProg: isoAt(1, 14, 0),
     finReal: null,
     tareas: [
-      { id: 'T-040', nombre: 'Revisión de bombas', componente: 'Bombas', completada: false },
-      { id: 'T-041', nombre: 'Cambio de sellos', componente: 'Sellos', completada: false }
-    ]
+      tarea('T-080', 'Ajuste de boquillas', 'Boquillas'),
+      tarea('T-081', 'Limpieza de tanque', 'Tanque'),
+      tarea('T-082', 'Prueba de caudal', 'Sensores'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+  {
+    id: 'P-013',
+    maquina: 'Llenadora',
+    sistema: 'Sistema de llenado',
+    componente: 'Pistones',
+    titulo: 'Mantenimiento de pistones y empaques',
+    ordenSap: 'SAP-9013',
+    tipo: 'Correctiva',
+    estadoBase: 'En ejecución',
+    inicio: isoAt(-1, 6, 0),
+    finProg: isoAt(1, 14, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-120', 'Revisión de pistones', 'Pistones', true),
+      tarea('T-121', 'Cambio de empaques', 'Empaques'),
+      tarea('T-122', 'Prueba de llenado', 'Boquillas'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+
+  // ── Empacadora ───────────────────────────────────────────────────────────
+  {
+    id: 'P-002',
+    maquina: 'Empacadora',
+    sistema: 'Sistema de sellado',
+    componente: 'Cabezal sellador',
+    titulo: 'Ajuste del cabezal sellador',
+    ordenSap: 'SAP-9002',
+    tipo: 'Correctiva',
+    estadoBase: 'En ejecución',
+    inicio: isoAt(-2, 8, 0),
+    finProg: isoAt(-2, 16, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-010', 'Revisión de resistencias', 'Resistencias', true),
+      tarea('T-011', 'Ajuste de presión', 'Neumática', true),
+      tarea('T-012', 'Limpieza de cabezal', 'Cabezal', true),
+      tarea('T-013', 'Prueba de sellado', 'Sellador'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
   },
   {
     id: 'P-006',
     maquina: 'Empacadora',
-    componente: 'Transportador',
+    sistema: 'Sistema de transporte',
+    componente: 'Transportador de salida',
+    titulo: 'Alineación de banda y tensado de cadena',
     ordenSap: 'SAP-9006',
-    estado: 'En ejecución',
-    inicio: '2026-11-01T07:00:00',
-    finProg: '2026-11-01T13:00:00',
+    tipo: 'Preventiva',
+    estadoBase: 'Cumplida',
+    inicio: isoAt(-3, 7, 0),
+    finProg: isoAt(-3, 13, 0),
+    finReal: isoAt(-3, 13, 20),
+    tareas: [
+      tarea('T-050', 'Alineación de banda', 'Banda', true),
+      tarea('T-051', 'Revisión de rodillos', 'Rodillos', true),
+      tarea('T-052', 'Tensado de cadena', 'Cadena', true),
+    ],
+    observaciones: 'Banda alineada y cadena tensada según especificación.',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: 100,
+  },
+  {
+    id: 'P-010',
+    maquina: 'Empacadora',
+    sistema: 'Sistema de arrastre',
+    componente: 'Cinta de arrastre',
+    titulo: 'Cambio de cinta y calibración de sensor',
+    ordenSap: 'SAP-9010',
+    tipo: 'Preventiva',
+    estadoBase: 'Pendiente',
+    inicio: isoAt(2, 8, 0),
+    finProg: isoAt(2, 16, 0),
     finReal: null,
     tareas: [
-      { id: 'T-050', nombre: 'Alineación de banda', componente: 'Banda', completada: true },
-      { id: 'T-051', nombre: 'Revisión de rodillos', componente: 'Rodillos', completada: true },
-      { id: 'T-052', nombre: 'Tensado de cadena', componente: 'Cadena', completada: true },
-      { id: 'T-053', nombre: 'Lubricación', componente: 'Rodamientos', completada: false }
-    ]
+      tarea('T-090', 'Cambio de cinta', 'Cinta'),
+      tarea('T-091', 'Calibración de sensor', 'Sensores'),
+      tarea('T-092', 'Lubricación de guías', 'Guías'),
+      tarea('T-093', 'Prueba de arrastre', 'Cinta'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+  {
+    id: 'P-014',
+    maquina: 'Empacadora',
+    sistema: 'Sistema de sellado',
+    componente: 'Termopares',
+    titulo: 'Calibración de temperatura de sellado',
+    ordenSap: 'SAP-9014',
+    tipo: 'Predictiva',
+    estadoBase: 'En ejecución',
+    inicio: isoAt(0, 6, 0),
+    finProg: isoAt(1, 16, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-130', 'Revisión de termopares', 'Termopares', true),
+      tarea('T-131', 'Ajuste de temperatura', 'Controlador', true),
+      tarea('T-132', 'Limpieza de mordazas', 'Mordazas'),
+      tarea('T-133', 'Prueba de sellado', 'Sellador'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+
+  // ── Paletizadora ─────────────────────────────────────────────────────────
+  {
+    id: 'P-003',
+    maquina: 'Paletizadora',
+    sistema: 'Sistema de paletizado',
+    componente: 'Brazo robótico',
+    titulo: 'Lubricación de ejes y revisión de baleros',
+    ordenSap: 'SAP-9003',
+    tipo: 'Preventiva',
+    estadoBase: 'Pendiente',
+    inicio: isoAt(2, 7, 0),
+    finProg: isoAt(2, 15, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-020', 'Lubricación de ejes', 'Ejes'),
+      tarea('T-021', 'Revisión de baleros', 'Rodamientos'),
+      tarea('T-022', 'Verificación de sensores', 'Sensores'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
   },
   {
     id: 'P-007',
     maquina: 'Paletizadora',
-    componente: 'Sistema eléctrico',
+    sistema: 'Sistema eléctrico',
+    componente: 'Tablero de control',
+    titulo: 'Revisión de contactores y prueba funcional',
     ordenSap: 'SAP-9007',
-    estado: 'Vencida',
-    inicio: '2026-10-27T10:00:00',
-    finProg: '2026-10-27T18:00:00',
+    tipo: 'Correctiva',
+    estadoBase: 'Cumplida',
+    inicio: isoAt(-2, 10, 0),
+    finProg: isoAt(-2, 18, 0),
+    finReal: isoAt(-2, 18, 10),
+    tareas: [
+      tarea('T-060', 'Revisión de contactores', 'Contactores', true),
+      tarea('T-061', 'Medición de aislamiento', 'Cableado', true),
+      tarea('T-062', 'Apriete de bornes', 'Bornes', true),
+      tarea('T-063', 'Prueba funcional', 'Tablero'),
+    ],
+    observaciones: 'Se cerró la parada con la prueba funcional pendiente por falta de repuesto.',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: true,
+    avanceAlCumplir: 75,
+  },
+  {
+    id: 'P-011',
+    maquina: 'Paletizadora',
+    sistema: 'Sistema de paletizado',
+    componente: 'Pinzas',
+    titulo: 'Revisión de pinzas y ajuste de posiciones',
+    ordenSap: 'SAP-9011',
+    tipo: 'Preventiva',
+    estadoBase: 'Pendiente',
+    inicio: isoAt(3, 7, 0),
+    finProg: isoAt(3, 15, 0),
     finReal: null,
     tareas: [
-      { id: 'T-060', nombre: 'Revisión de contactores', componente: 'Contactores', completada: false },
-      { id: 'T-061', nombre: 'Medición de aislamiento', componente: 'Cableado', completada: false },
-      { id: 'T-062', nombre: 'Apriete de bornes', componente: 'Bornes', completada: false },
-      { id: 'T-063', nombre: 'Prueba funcional', componente: 'Tablero', completada: false }
-    ]
+      tarea('T-100', 'Revisión de pinzas', 'Pinzas'),
+      tarea('T-101', 'Ajuste de posiciones', 'Servomotores'),
+      tarea('T-102', 'Prueba de ciclo', 'Controlador'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+  {
+    id: 'P-016',
+    maquina: 'Paletizadora',
+    sistema: 'Sistema de seguridad',
+    componente: 'Frenos',
+    titulo: 'Revisión de frenos y prueba de seguridad',
+    ordenSap: 'SAP-9016',
+    tipo: 'Correctiva',
+    estadoBase: 'En ejecución',
+    inicio: isoAt(-1, 7, 0),
+    finProg: isoAt(2, 15, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-140', 'Revisión de frenos', 'Frenos', true),
+      tarea('T-141', 'Ajuste de velocidad', 'Servomotores'),
+      tarea('T-142', 'Prueba de seguridad', 'Sensores'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+
+  // ── Envolvedora ──────────────────────────────────────────────────────────
+  {
+    id: 'P-004',
+    maquina: 'Envolvedora',
+    sistema: 'Sistema film',
+    componente: 'Rodillos de film',
+    titulo: 'Cambio de rodillos y ajuste de tensión',
+    ordenSap: 'SAP-9004',
+    tipo: 'Correctiva',
+    estadoBase: 'En ejecución',
+    inicio: isoAt(-5, 6, 0),
+    finProg: isoAt(2, 12, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-030', 'Cambio de rodillos', 'Rodillos', true),
+      tarea('T-031', 'Ajuste de tensión', 'Tensores', true),
+      tarea('T-032', 'Inspección de guía film', 'Guía', false, { reprogramadaA: 'P-004', reprogramadaEl: REGISTRADA_HOY }),
+      tarea('T-033', 'Prueba de corte', 'Cuchilla', false, { reprogramadaA: 'P-004', reprogramadaEl: REGISTRADA_HOY }),
+      tarea('T-034', 'Limpieza general', 'General', false, { reprogramadaA: 'P-004', reprogramadaEl: REGISTRADA_HOY }),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [
+      {
+        fechaOriginal: isoAt(-8, 6, 0),
+        fechaNueva: isoAt(-5, 6, 0),
+        registradaEl: isoAt(-6, 9, 0),
+        avance: 40,
+        tareasPendientes: 3,
+        motivo: 'vencida',
+      },
+    ],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
   },
   {
     id: 'P-008',
     maquina: 'Envolvedora',
-    componente: 'Cuchilla corte',
+    sistema: 'Sistema film',
+    componente: 'Guía de film',
+    titulo: 'Ajuste de guía y prueba de corte',
     ordenSap: 'SAP-9008',
-    estado: 'Pendiente',
-    inicio: '2026-11-06T08:00:00',
-    finProg: '2026-11-06T14:00:00',
+    tipo: 'Predictiva',
+    estadoBase: 'Cumplida',
+    inicio: isoAt(-1, 8, 0),
+    finProg: isoAt(-1, 14, 0),
+    finReal: isoAt(-1, 14, 5),
+    tareas: [
+      tarea('T-070', 'Cambio de rodillos', 'Rodillos', true),
+      tarea('T-071', 'Ajuste de tensión', 'Tensores', true),
+      tarea('T-072', 'Inspección de guía', 'Guía', true),
+    ],
+    observaciones: 'La prueba de corte quedó reprogramada para la siguiente parada.',
+    historialReprogramaciones: [
+      {
+        fechaOriginal: isoAt(-1, 8, 0),
+        fechaNueva: COPIA_INICIO,
+        registradaEl: REGISTRADA_HOY,
+        avance: 75,
+        tareasPendientes: 1,
+        motivo: 'tareas-restantes',
+      },
+    ],
+    paradaOriginalId: null,
+    reprogramadaA: 'P-015',
+    reprogramadaAFecha: COPIA_INICIO,
+    cumplidaParcial: false,
+    avanceAlCumplir: 75,
+  },
+  {
+    id: 'P-012',
+    maquina: 'Envolvedora',
+    sistema: 'Sistema film',
+    componente: 'Freno de film',
+    titulo: 'Cambio de film y ajuste de freno',
+    ordenSap: 'SAP-9012',
+    tipo: 'Preventiva',
+    estadoBase: 'Pendiente',
+    inicio: isoAt(4, 8, 0),
+    finProg: isoAt(4, 14, 0),
     finReal: null,
     tareas: [
-      { id: 'T-070', nombre: 'Cambio de cuchilla', componente: 'Cuchilla', completada: false },
-      { id: 'T-071', nombre: 'Ajuste de guía', componente: 'Guía', completada: false },
-      { id: 'T-072', nombre: 'Prueba de corte', componente: 'Cuchilla', completada: false }
-    ]
-  }
-]
-
-// Tareas reprogramadas (coherentes)
-export const TAREAS_REPROGRAMADAS = [
-  { tareaId: 'T-001', paradaId: 'P-001', reprogramadaA: 'P-005' },
-  { tareaId: 'T-030', paradaId: 'P-004', reprogramadaA: 'P-007' }
+      tarea('T-110', 'Cambio de film', 'Film'),
+      tarea('T-111', 'Ajuste de freno', 'Freno'),
+      tarea('T-112', 'Prueba de tensión', 'Tensores'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+  {
+    id: 'P-015',
+    maquina: 'Envolvedora',
+    sistema: 'Sistema film',
+    componente: 'Guía de film',
+    titulo: 'Prueba de corte (tareas restantes)',
+    ordenSap: 'SAP-9008',
+    tipo: 'Predictiva',
+    estadoBase: 'Pendiente',
+    inicio: COPIA_INICIO,
+    finProg: COPIA_FIN,
+    finReal: null,
+    tareas: [
+      tarea('T-073', 'Prueba de corte', 'Cuchilla', false, { reprogramadaA: 'P-015', reprogramadaEl: REGISTRADA_HOY }),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [
+      {
+        fechaOriginal: isoAt(-1, 8, 0),
+        fechaNueva: COPIA_INICIO,
+        registradaEl: REGISTRADA_HOY,
+        avance: 75,
+        tareasPendientes: 1,
+        motivo: 'tareas-restantes',
+      },
+    ],
+    paradaOriginalId: 'P-008',
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
+  {
+    id: 'P-017',
+    maquina: 'Envolvedora',
+    sistema: 'Sistema de corte',
+    componente: 'Cuchillas',
+    titulo: 'Revisión de cuchillas y alineación de guía',
+    ordenSap: 'SAP-9017',
+    tipo: 'Correctiva',
+    estadoBase: 'En ejecución',
+    inicio: isoAt(0, 8, 0),
+    finProg: isoAt(2, 16, 0),
+    finReal: null,
+    tareas: [
+      tarea('T-150', 'Revisión de cuchillas', 'Cuchillas', true),
+      tarea('T-151', 'Alineación de guía', 'Guía'),
+      tarea('T-152', 'Prueba de corte', 'Cuchilla'),
+    ],
+    observaciones: '',
+    historialReprogramaciones: [],
+    paradaOriginalId: null,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  },
 ]
 
 export function getParadaById(id) {
-  return PARADAS.find(p => p.id === id) || null
+  return PARADAS.find((p) => p.id === id) || null
 }
+
+export { toISODate, toISO }

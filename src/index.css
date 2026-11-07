@@ -153,3 +153,19 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── Cumplimiento ───────────────────────────────────────────────────────── */
+@keyframes cum-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cum-row-in-right {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes cum-row-in-left {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}

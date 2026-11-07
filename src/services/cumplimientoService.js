@@ -1,50 +1,98 @@
-import { PARADAS, TAREAS_REPROGRAMADAS, getParadaById } from '../data/mock/cumplimiento'
+import { PARADAS, MAQUINAS_CRITICAS } from '../data/mock/cumplimiento.js'
+import { siguienteDiaHabil } from '../utils/weeks.js'
+
+const clone = (value) => JSON.parse(JSON.stringify(value))
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Estado mutable del cliente mientras no exista backend.
+let paradas = clone(PARADAS)
+
+function pad(n) {
+  return String(n).padStart(2, '0')
+}
+
+function toLocalISO(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+}
 
 function inRange(dateStr, from, to) {
   if (!from || !to || !dateStr) return false
-  const d = dateStr.slice(0, 10)
-  return d >= from && d <= to
+  const day = String(dateStr).slice(0, 10)
+  return day >= from && day <= to
 }
 
-function isCompleted(task) {
-  return !!task.completada
+function matchesMachine(parada, maquina) {
+  return !maquina || maquina === 'todas' || parada.maquina === maquina
 }
 
-function isReprogramada(tareaId) {
-  return TAREAS_REPROGRAMADAS.some(tr => tr.tareaId === tareaId)
+/** Vencida se deriva: fin programado en el pasado y todavía no Cumplida. */
+export function estadoEfectivo(parada, now = new Date()) {
+  const base = parada.estadoBase || parada.estado || 'Pendiente'
+  if (base === 'Cumplida') return 'Cumplida'
+  const fin = new Date(parada.finProg)
+  if (!Number.isNaN(fin.getTime()) && fin.getTime() < now.getTime()) return 'Vencida'
+  return base
 }
 
-export async function getResumen(rango) {
-  await new Promise(r => setTimeout(r, 150))
+function serialize(parada) {
+  return { ...clone(parada), estado: estadoEfectivo(parada) }
+}
+
+function findMutable(paradaId) {
+  return paradas.find((p) => p.id === paradaId) || null
+}
+
+function applyTareas(parada, tareas) {
+  if (!tareas) return
+  parada.tareas = parada.tareas.map((t) => ({
+    ...t,
+    completada: tareas[t.id] !== undefined ? !!tareas[t.id] : t.completada,
+  }))
+}
+
+function withDateAndTime(destino, origenISO) {
+  const origen = new Date(origenISO)
+  const fecha = new Date(destino)
+  fecha.setHours(origen.getHours(), origen.getMinutes(), 0, 0)
+  return toLocalISO(fecha)
+}
+
+function progreso(parada) {
+  const total = parada.tareas?.length || 0
+  const hechas = (parada.tareas || []).filter((t) => t.completada).length
+  return { total, hechas, pct: total === 0 ? 0 : Math.round((hechas / total) * 100) }
+}
+
+export async function getResumen(rango, maquina = 'todas') {
+  await delay(150)
   if (!rango) return { cumplimiento: 0, ejecutadas: 0, programadas: 0, pospuestas: 0, vencidas: 0 }
-  
-  // Filtrar paradas por rango (inicio)
-  const paradasEnRango = PARADAS.filter(p => inRange(p.inicio, rango.from, rango.to))
-  
+
   let programadas = 0
   let ejecutadas = 0
   let pospuestas = 0
-  
-  for (const p of paradasEnRango) {
-    for (const t of p.tareas || []) {
-      programadas++
-      if (isCompleted(t)) ejecutadas++
-      if (isReprogramada(t.id)) pospuestas++
-    }
-  }
-  
-  // Vencidas: tareas no completadas de paradas en estado Vencida (sin filtrar por rango para cumplir especificación)
   let vencidas = 0
-  for (const p of PARADAS) {
-    if (p.estado === 'Vencida') {
+
+  for (const p of paradas) {
+    if (!matchesMachine(p, maquina)) continue
+
+    if (inRange(p.inicio, rango.from, rango.to)) {
       for (const t of p.tareas || []) {
-        if (!isCompleted(t)) vencidas++
+        programadas++
+        if (t.completada) ejecutadas++
       }
     }
+
+    // Pospuestas: tareas cuya reprogramación ocurrió dentro del período.
+    for (const t of p.tareas || []) {
+      if (t.reprogramadaA && inRange(t.reprogramadaEl, rango.from, rango.to)) pospuestas++
+    }
+
+    // Vencidas: paradas cuyo fin programado ya pasó y no están Cumplidas.
+    // Se cuentan paradas (no tareas) y sin importar el rango seleccionado.
+    if (estadoEfectivo(p) === 'Vencida') vencidas++
   }
-  
+
   const cumplimiento = programadas === 0 ? 0 : Math.round((ejecutadas / programadas) * 100)
-  
   return { cumplimiento, ejecutadas, programadas, pospuestas, vencidas }
 }
 
@@ -59,13 +107,12 @@ function getWeekKeyFromDate(dateStr) {
 }
 
 export async function getCumplimientoSemanal({ rango, maquina = 'todas' }) {
-  await new Promise(r => setTimeout(r, 150))
-  const maquinas = maquina === 'todas' ? ['Llenadora', 'Empacadora', 'Paletizadora', 'Envolvedora'] : [maquina]
-  
+  await delay(150)
+  const maquinas = !maquina || maquina === 'todas' ? MAQUINAS_CRITICAS : [maquina]
+
   if (rango?.type === 'month') {
-    // Agrupar por semanas del mes
     const weeks = {}
-    for (const p of PARADAS) {
+    for (const p of paradas) {
       if (!inRange(p.inicio, rango.from, rango.to)) continue
       if (!maquinas.includes(p.maquina)) continue
       const wk = getWeekKeyFromDate(p.inicio)
@@ -73,67 +120,204 @@ export async function getCumplimientoSemanal({ rango, maquina = 'todas' }) {
       if (!weeks[wk].maquinas[p.maquina]) weeks[wk].maquinas[p.maquina] = { programadas: 0, ejecutadas: 0 }
       for (const t of p.tareas || []) {
         weeks[wk].maquinas[p.maquina].programadas++
-        if (isCompleted(t)) weeks[wk].maquinas[p.maquina].ejecutadas++
+        if (t.completada) weeks[wk].maquinas[p.maquina].ejecutadas++
       }
     }
     const result = []
-    Object.values(weeks).forEach(w => {
-      maquinas.forEach(m => {
+    Object.values(weeks).forEach((w) => {
+      maquinas.forEach((m) => {
         const data = w.maquinas[m] || { programadas: 0, ejecutadas: 0 }
         const pct = data.programadas === 0 ? 0 : Math.round((data.ejecutadas / data.programadas) * 100)
         result.push({ semana: w.semana, maquina: m, cumplimiento: pct, ejecutadas: data.ejecutadas, programadas: data.programadas })
       })
     })
     return result
-  } else {
-    // Una semana
-    const paradasEnRango = PARADAS.filter(p => inRange(p.inicio, rango.from, rango.to))
-    const result = []
-    for (const m of maquinas) {
-      let programadas = 0
-      let ejecutadas = 0
-      for (const p of paradasEnRango.filter(x => x.maquina === m)) {
-        for (const t of p.tareas || []) {
-          programadas++
-          if (isCompleted(t)) ejecutadas++
-        }
-      }
-      const pct = programadas === 0 ? 0 : Math.round((ejecutadas / programadas) * 100)
-      const wk = rango.from ? getWeekKeyFromDate(rango.from + 'T00:00:00') : 'Sem'
-      result.push({ semana: wk, maquina: m, cumplimiento: pct, ejecutadas, programadas })
-    }
-    return result
   }
+
+  const enRango = paradas.filter((p) => inRange(p.inicio, rango?.from, rango?.to))
+  const semana = rango?.from ? getWeekKeyFromDate(`${rango.from}T00:00:00`) : 'Sem'
+  return maquinas.map((m) => {
+    let programadas = 0
+    let ejecutadas = 0
+    for (const p of enRango.filter((x) => x.maquina === m)) {
+      for (const t of p.tareas || []) {
+        programadas++
+        if (t.completada) ejecutadas++
+      }
+    }
+    const pct = programadas === 0 ? 0 : Math.round((ejecutadas / programadas) * 100)
+    return { semana, maquina: m, cumplimiento: pct, ejecutadas, programadas }
+  })
 }
 
-export async function getParadas({ estado = 'todos' } = {}) {
-  await new Promise(r => setTimeout(r, 150))
-  let list = [...PARADAS]
-  if (estado && estado !== 'todos') {
-    list = list.filter(p => p.estado === estado)
-  }
-  // Ordenar por fecha de inicio más próximas primero
+export async function getParadas({ estado = 'todos', maquina = 'todas' } = {}) {
+  await delay(150)
+  let list = paradas.map(serialize)
+  if (estado && estado !== 'todos') list = list.filter((p) => p.estado === estado)
+  if (maquina && maquina !== 'todas') list = list.filter((p) => p.maquina === maquina)
   list.sort((a, b) => new Date(a.inicio) - new Date(b.inicio))
   return list
 }
 
+export async function getParada(paradaId) {
+  await delay(80)
+  const parada = findMutable(paradaId)
+  return parada ? serialize(parada) : null
+}
+
 export async function registrarSeguimiento(paradaId, payload) {
-  await new Promise(r => setTimeout(r, 300))
-  const parada = getParadaById(paradaId)
+  await delay(300)
+  const parada = findMutable(paradaId)
   if (!parada) throw new Error('Parada no encontrada')
-  
-  // Actualizar tareas
-  if (payload.tareas) {
-    for (const t of parada.tareas) {
-      if (payload.tareas[t.id] !== undefined) {
-        t.completada = !!payload.tareas[t.id]
-      }
-    }
-  }
-  
-  // Actualizar estado y duración
-  if (payload.estado) parada.estado = payload.estado
+  if (payload.estado === 'Vencida') throw new Error('Las paradas vencidas solo se pueden reprogramar')
+
+  applyTareas(parada, payload.tareas)
+  parada.estadoBase = payload.estado || parada.estadoBase
   if (payload.finReal) parada.finReal = payload.finReal
-  
-  return { success: true, parada }
+  if (payload.observaciones !== undefined) parada.observaciones = payload.observaciones
+
+  return { success: true, parada: serialize(parada) }
+}
+
+/**
+ * Cumple la parada. Si quedan tareas sin marcar, la parada queda Cumplida
+ * con tareas pendientes (avance parcial).
+ */
+export async function cumplirParada(paradaId, payload = {}) {
+  await delay(300)
+  const parada = findMutable(paradaId)
+  if (!parada) throw new Error('Parada no encontrada')
+
+  applyTareas(parada, payload.tareas)
+  const { total, hechas, pct } = progreso(parada)
+
+  parada.estadoBase = 'Cumplida'
+  parada.finReal = payload.finReal || parada.finReal || new Date().toISOString()
+  if (payload.observaciones !== undefined) parada.observaciones = payload.observaciones
+  parada.cumplidaParcial = hechas < total
+  parada.avanceAlCumplir = pct
+
+  return { success: true, parada: serialize(parada) }
+}
+
+/**
+ * Cumple la parada solo con las tareas hechas y crea una copia Pendiente
+ * con las tareas restantes en el siguiente día hábil.
+ */
+export async function cumplirYReprogramarRestantes(paradaId, payload = {}) {
+  await delay(360)
+  const parada = findMutable(paradaId)
+  if (!parada) throw new Error('Parada no encontrada')
+
+  applyTareas(parada, payload.tareas)
+
+  const totalOriginal = parada.tareas.length
+  const hechas = parada.tareas.filter((t) => t.completada)
+  const pendientes = parada.tareas.filter((t) => !t.completada)
+  const ahora = new Date()
+
+  // No hay nada que reprogramar: se comporta como un cumplimiento normal.
+  if (pendientes.length === 0) {
+    parada.estadoBase = 'Cumplida'
+    parada.finReal = payload.finReal || parada.finReal || ahora.toISOString()
+    if (payload.observaciones !== undefined) parada.observaciones = payload.observaciones
+    parada.cumplidaParcial = false
+    parada.avanceAlCumplir = 100
+    return { success: true, parada: serialize(parada), copia: null }
+  }
+
+  const nuevaFecha = siguienteDiaHabil(parada.inicio)
+  const nuevoInicio = withDateAndTime(nuevaFecha, parada.inicio)
+  const nuevoFin = withDateAndTime(nuevaFecha, parada.finProg)
+  const avance = totalOriginal === 0 ? 0 : Math.round((hechas.length / totalOriginal) * 100)
+  const copiaId = `P-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+  const historial = {
+    fechaOriginal: parada.historialReprogramaciones?.[0]?.fechaOriginal || parada.inicio,
+    fechaNueva: nuevoInicio,
+    registradaEl: ahora.toISOString(),
+    avance,
+    tareasPendientes: pendientes.length,
+    motivo: 'tareas-restantes',
+  }
+
+  const copia = {
+    id: copiaId,
+    maquina: parada.maquina,
+    sistema: parada.sistema,
+    componente: parada.componente,
+    titulo: `${parada.titulo} (tareas restantes)`,
+    ordenSap: parada.ordenSap,
+    tipo: parada.tipo,
+    estadoBase: 'Pendiente',
+    inicio: nuevoInicio,
+    finProg: nuevoFin,
+    finReal: null,
+    tareas: pendientes.map((t, index) => ({
+      ...clone(t),
+      id: `T-${copiaId}-${index + 1}`,
+      completada: false,
+      reprogramadaA: copiaId,
+      reprogramadaEl: ahora.toISOString(),
+    })),
+    observaciones: '',
+    historialReprogramaciones: [historial],
+    paradaOriginalId: parada.id,
+    reprogramadaA: null,
+    reprogramadaAFecha: null,
+    cumplidaParcial: false,
+    avanceAlCumplir: null,
+  }
+
+  parada.tareas = hechas
+  parada.estadoBase = 'Cumplida'
+  parada.finReal = payload.finReal || parada.finReal || ahora.toISOString()
+  if (payload.observaciones !== undefined) parada.observaciones = payload.observaciones
+  parada.cumplidaParcial = false
+  parada.avanceAlCumplir = avance
+  parada.reprogramadaA = copia.id
+  parada.reprogramadaAFecha = copia.inicio
+  parada.historialReprogramaciones = [...(parada.historialReprogramaciones || []), historial]
+
+  paradas.push(copia)
+  return { success: true, parada: serialize(parada), copia: serialize(copia) }
+}
+
+/**
+ * Mueve la misma parada vencida al siguiente día hábil, conservando sus
+ * tareas y horas. Las tareas pendientes quedan marcadas como reprogramadas.
+ */
+export async function reprogramarParada(paradaId) {
+  await delay(300)
+  const parada = findMutable(paradaId)
+  if (!parada) throw new Error('Parada no encontrada')
+
+  const ahora = new Date()
+  const { total, hechas, pct } = progreso(parada)
+  const nuevaFecha = siguienteDiaHabil(parada.inicio)
+  const fechaOriginal = parada.historialReprogramaciones?.[0]?.fechaOriginal || parada.inicio
+
+  parada.inicio = withDateAndTime(nuevaFecha, parada.inicio)
+  parada.finProg = withDateAndTime(nuevaFecha, parada.finProg)
+  parada.estadoBase = 'Pendiente'
+  parada.finReal = null
+  parada.cumplidaParcial = false
+  parada.tareas = parada.tareas.map((t) =>
+    t.completada
+      ? t
+      : { ...t, reprogramadaA: parada.id, reprogramadaEl: ahora.toISOString() }
+  )
+  parada.historialReprogramaciones = [
+    ...(parada.historialReprogramaciones || []),
+    {
+      fechaOriginal,
+      fechaNueva: parada.inicio,
+      registradaEl: ahora.toISOString(),
+      avance: total === 0 ? 0 : pct,
+      tareasPendientes: total - hechas,
+      motivo: 'vencida',
+    },
+  ]
+
+  return { success: true, parada: serialize(parada) }
 }

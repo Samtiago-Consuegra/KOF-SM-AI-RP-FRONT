@@ -4,21 +4,21 @@ import Skeleton from '../ui/Skeleton.jsx'
 import useCountUp from '../../hooks/useCountUp.js'
 import { getResumen } from '../../services/cumplimientoService.js'
 
-export default function ResumenCards({ rango }) {
+export default function ResumenCards({ rango, maquina = 'todas', refreshKey = 0 }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
     let ignore = false
     setLoading(true)
-    getResumen(rango).then(res => {
+    getResumen(rango, maquina).then(res => {
       if (!ignore) {
         setData(res)
         setLoading(false)
       }
     })
     return () => { ignore = true }
-  }, [rango])
+  }, [rango, maquina, refreshKey])
   
   const c1 = useCountUp(data?.cumplimiento || 0)
   const c2a = useCountUp(data?.ejecutadas || 0)

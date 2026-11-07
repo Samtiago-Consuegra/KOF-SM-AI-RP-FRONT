@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, HelpCircle } from 'lucide-react'
+import { isTopLayer, pushLayer } from '../../utils/modalLayer.js'
 
 export default function ConfirmDialog({
   open,
@@ -8,17 +9,29 @@ export default function ConfirmDialog({
   confirmText = 'Aceptar',
   cancelText = 'Cancelar',
   variant = 'danger', // danger | neutral
+  icon,
+  confirmClassName,
+  busy = false,
   onConfirm,
   onCancel,
 }) {
   const cancelRef = useRef(null)
   const [shake, setShake] = useState(false)
+  const onCancelRef = useRef(onCancel)
+  const busyRef = useRef(busy)
+  const layerRef = useRef(`confirm-${Math.random().toString(36).slice(2)}`)
+
+  useEffect(() => { onCancelRef.current = onCancel }, [onCancel])
+  useEffect(() => { busyRef.current = busy }, [busy])
 
   useEffect(() => {
     if (!open) return
+    const id = layerRef.current
+    const popLayer = pushLayer(id)
     cancelRef.current?.focus()
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); onCancel?.() }
+      if (!isTopLayer(id)) return
+      if (e.key === 'Escape') { e.preventDefault(); if (!busyRef.current) onCancelRef.current?.() }
       if (e.key === 'Tab') {
         // basic focus trap
         const focusables = Array.from(document.querySelectorAll('[data-confirm-focus]'))
@@ -29,16 +42,19 @@ export default function ConfirmDialog({
       }
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      popLayer()
+    }
+  }, [open])
 
   if (!open) return null
 
-  const Icon = variant === 'danger' ? AlertTriangle : HelpCircle
+  const Icon = icon || (variant === 'danger' ? AlertTriangle : HelpCircle)
   const iconWrap = variant === 'danger' ? 'bg-primary-50 text-primary-500' : 'bg-ink-50 text-ink-700'
-  const confirmBtn = variant === 'danger'
+  const confirmBtn = confirmClassName || (variant === 'danger'
     ? 'bg-primary-500 text-white hover:bg-primary-600'
-    : 'bg-ink-900 text-white hover:bg-primary-500'
+    : 'bg-ink-900 text-white hover:bg-primary-500')
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center">
@@ -68,8 +84,26 @@ export default function ConfirmDialog({
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 p-4 border-t border-neutral-200">
-          <button ref={cancelRef} data-confirm-focus onClick={onCancel} className="h-9 px-3 rounded-lg border border-neutral-200 text-sm hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400">{cancelText}</button>
-          <button data-confirm-focus onClick={onConfirm} className={`h-9 px-3 rounded-lg text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${confirmBtn}`}>{confirmText}</button>
+          <button
+            ref={cancelRef}
+            data-confirm-focus
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="h-9 px-3 rounded-lg border border-neutral-200 text-sm hover:bg-neutral-50 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"
+          >
+            {cancelText}
+          </button>
+          <button
+            data-confirm-focus
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            aria-busy={busy}
+            className={`h-9 px-3 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${confirmBtn}`}
+          >
+            {confirmText}
+          </button>
         </div>
       </div>
     </div>
