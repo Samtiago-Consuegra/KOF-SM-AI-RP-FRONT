@@ -66,11 +66,17 @@ export default function Dashboard() {
   const { machines, loading: machinesLoading, error: machinesError } = useMachines()
   const periods = usePeriods()
   const resolved = useMemo(() => resolveTimeRange(range, today, periods), [range, periods]) // eslint-disable-line react-hooks/exhaustive-deps
-  const { ctx, sel, loading, error, refresh } = useEdaSummary(resolved, machineFilter)
 
   // El mes en curso suele venir sin paros (el Excel va atrasado), así que caemos al
   // último mes con datos registrados para que la pantalla abra con contenido.
-  const { months } = periods
+  const { months, loading: periodsLoading } = periods
+  const periodsReady = !periodsLoading
+  const needsMonthFix = periodsReady && months.length > 0 && !months.includes(range.month)
+  // No pedir /eda/summary hasta que periodos cargue y el ajuste de mes se haya aplicado:
+  // evita la petición con el rango provisional y otra con el mes corregido.
+  const summaryEnabled = periodsReady && !needsMonthFix
+  const { ctx, sel, loading, error, refresh } = useEdaSummary(resolved, machineFilter, summaryEnabled)
+
   useEffect(() => {
     if (months.length === 0 || months.includes(range.month)) return
     setRange((r) => ({ ...r, period: 'mes', month: months[months.length - 1] }))
@@ -167,7 +173,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {!error && loading && !sel && <DashboardSkeleton />}
+      {!error && !sel && (loading || !summaryEnabled) && <DashboardSkeleton />}
 
       {sel?.empty && (
         <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">

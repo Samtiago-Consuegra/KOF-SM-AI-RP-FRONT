@@ -217,3 +217,40 @@ body {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }
 }
+
+/* ── Arranque en frío ───────────────────────────────────────────────────── */
+@keyframes kof-wake-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes kof-wake-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+
+.kof-wake-in {
+  animation: kof-wake-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.kof-wake-out {
+  animation: kof-wake-out 0.28s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes kof-splash-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.86; transform: scale(0.985); }
+}
+
+@keyframes kof-splash-bar {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(220%); }
+}
+
+.kof-splash-pulse {
+  animation: kof-splash-pulse 2.4s ease-in-out infinite;
+}
+
+.kof-splash-bar {
+  animation: kof-splash-bar 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}

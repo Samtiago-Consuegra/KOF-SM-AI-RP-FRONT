@@ -1,12 +1,17 @@
 /**
  * Capa HTTP mínima sobre fetch. No hay axios ni react-query en el proyecto, así que
- * aquí se centraliza: la URL base, la construcción del query string y la traducción
- * de los errores de FastAPI (`{detail}`) a excepciones de JavaScript.
+ * aquí se centraliza: la URL base, la construcción del query string, la traducción
+ * de los errores de FastAPI (`{detail}`) a excepciones de JavaScript, el aviso de
+ * "servidor despertando" y una caché corta para los GET que no cambian seguido.
  */
 
 const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '')
 
 const TOKEN_KEY = 'kof_smart_token'
+
+const SLOW_API_MS = 4000
+const GET_CACHE_TTL = 60_000
+const WARM_UP_TIMEOUT = 60_000
 
 export function getAuthToken() {
   try {
@@ -77,53 +82,143 @@ export function buildQuery(params = {}) {
   return s ? `?${s}` : ''
 }
 
+// --- Aviso global de servidor lento -------------------------------------------------------------
+// Varias peticiones pueden estar en curso a la vez. Solo avisamos cuando la primera supera
+// los 4 s y solo ocultamos el aviso cuando termina la última petición lenta.
+let slowRequests = 0
+
+function emitWindowEvent(name) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(name))
+}
+
+function beginSlowWatch() {
+  let counted = false
+  const timer = setTimeout(() => {
+    counted = true
+    slowRequests += 1
+    if (slowRequests === 1) emitWindowEvent('kof:slow-api')
+  }, SLOW_API_MS)
+
+  return () => {
+    clearTimeout(timer)
+    if (!counted) return
+    counted = false
+    slowRequests = Math.max(0, slowRequests - 1)
+    if (slowRequests === 0) emitWindowEvent('kof:api-ready')
+  }
+}
+
+// --- Caché de GET -------------------------------------------------------------------------------
+// Solo los catálogos y la vista previa de predicciones: son datos que cambian únicamente
+// al subir un Excel. La caché se limpia completa después de cualquier apiUpload exitoso.
+const getCache = new Map()
+let warmUpPromise = null
+
+function isCacheableGet(path, params) {
+  if (path === '/machines' || path === '/eda/periodos') return true
+  return path === '/predicciones' && params?.include === 'matriz,meta'
+}
+
+function readCache(key) {
+  const entry = getCache.get(key)
+  if (!entry) return undefined
+  if (entry.expires <= Date.now()) {
+    getCache.delete(key)
+    return undefined
+  }
+  return entry.value
+}
+
+function writeCache(key, value) {
+  getCache.set(key, { value, expires: Date.now() + GET_CACHE_TTL })
+}
+
+/**
+ * Despierta el backend en paralelo al render. Render (u otro host gratuito) duerme la
+ * instancia tras un rato sin tráfico; /health no exige token y responde en cuanto el
+ * proceso está arriba. La promesa se guarda para que un segundo montaje no repita la
+ * llamada. Cualquier error se absorbe: el arranque del frontend no depende de esto.
+ */
+export function warmUpApi() {
+  if (!warmUpPromise) {
+    warmUpPromise = (async () => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), WARM_UP_TIMEOUT)
+      const doneSlow = beginSlowWatch()
+      try {
+        await fetch(`${BASE}/health`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+      } catch {
+        // El backend puede tardar más de 60 s o estar caído. No bloqueamos la interfaz.
+      } finally {
+        clearTimeout(timeout)
+        doneSlow()
+      }
+    })()
+  }
+  return warmUpPromise
+}
+
 async function request(path, { params, signal, body, headers, auth = true } = {}) {
-  let res
-  try {
-    const token = auth ? getAuthToken() : null
-    const reqHeaders = { Accept: 'application/json', ...(headers || {}) }
-    if (token) {
-      reqHeaders.Authorization = `Bearer ${token}`
-    }
-    // FormData lleva su propio Content-Type (con el boundary): no lo fijamos a mano.
-    if (body instanceof FormData) {
-      res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
-        method: body ? 'POST' : 'GET',
-        headers: reqHeaders,
-        body,
-        signal,
-      })
-    } else if (body !== undefined && body !== null) {
-      reqHeaders['Content-Type'] = reqHeaders['Content-Type'] || 'application/json'
-      res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
-        method: 'POST',
-        headers: reqHeaders,
-        body: typeof body === 'string' ? body : JSON.stringify(body),
-        signal,
-      })
-    } else {
-      res = await fetch(`${BASE}${path}${buildQuery(params)}`, {
-        method: 'GET',
-        headers: reqHeaders,
-        body,
-        signal,
-      })
-    }
-  } catch (err) {
-    if (err.name === 'AbortError') throw err
-    throw new ApiError('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0)
+  const method = body !== undefined && body !== null ? 'POST' : 'GET'
+  const query = buildQuery(params)
+  const cacheKey = `${path}${query}`
+  const cacheable = method === 'GET' && isCacheableGet(path, params)
+
+  if (cacheable) {
+    const cached = readCache(cacheKey)
+    if (cached !== undefined) return cached
   }
 
-  if (res.status === 204) return null
-  const payload = await res.json().catch(() => null)
-  if (!res.ok) throw new ApiError(errorMessage(payload, res.status), res.status)
-  return payload
+  const doneSlow = beginSlowWatch()
+  try {
+    let res
+    try {
+      const token = auth ? getAuthToken() : null
+      const reqHeaders = { Accept: 'application/json', ...(headers || {}) }
+      if (token) {
+        reqHeaders.Authorization = `Bearer ${token}`
+      }
+
+      const init = { method, headers: reqHeaders, signal }
+      if (body instanceof FormData) {
+        // FormData lleva su propio Content-Type (con el boundary): no lo fijamos a mano.
+        init.body = body
+      } else if (body !== undefined && body !== null) {
+        reqHeaders['Content-Type'] = reqHeaders['Content-Type'] || 'application/json'
+        init.body = typeof body === 'string' ? body : JSON.stringify(body)
+      }
+
+      res = await fetch(`${BASE}${cacheKey}`, init)
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      throw new ApiError('No se pudo conectar con el servidor. Revisa que el backend esté encendido.', 0)
+    }
+
+    if (res.status === 204) return null
+    const payload = await res.json().catch(() => null)
+    if (!res.ok) throw new ApiError(errorMessage(payload, res.status), res.status)
+    if (cacheable) writeCache(cacheKey, payload)
+    return payload
+  } finally {
+    doneSlow()
+  }
 }
 
 export const apiGet = (path, params, opts) => request(path, { ...opts, params })
 
 export const apiPost = (path, body, opts) => request(path, { ...opts, body })
 
-export const apiUpload = (path, formData, opts) => request(path, { ...opts, body: formData })
+export async function apiUpload(path, formData, opts) {
+  const result = await request(path, { ...opts, body: formData })
+  // El Excel puede traer máquinas, periodos y predicciones nuevas.
+  getCache.clear()
+  return result
+}
 
 export { BASE as API_BASE }

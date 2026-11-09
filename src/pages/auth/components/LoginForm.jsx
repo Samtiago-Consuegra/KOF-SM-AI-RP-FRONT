@@ -20,6 +20,7 @@ export default function LoginForm({ onSwitch }) {
   const [show, setShow] = useState(false)
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const [slow, setSlow] = useState(false)
   const [serverError, setServerError] = useState('')
 
   const validate = () => {
@@ -34,7 +35,9 @@ export default function LoginForm({ onSwitch }) {
     ev.preventDefault()
     if (!validate()) return
     setLoading(true)
+    setSlow(false)
     setServerError('')
+    const slowTimer = setTimeout(() => setSlow(true), 4000)
     try {
       await onLogin({ email: form.email, password: form.password, remember: form.remember })
       const me = await onGetMe()
@@ -42,6 +45,8 @@ export default function LoginForm({ onSwitch }) {
     } catch (err) {
       setServerError(err?.message || 'Error al iniciar sesión')
     } finally {
+      clearTimeout(slowTimer)
+      setSlow(false)
       setLoading(false)
     }
   }
@@ -128,6 +133,13 @@ export default function LoginForm({ onSwitch }) {
           {loading && <Loader2 className="size-4 animate-spin" />}
           Iniciar sesión
         </button>
+
+        {slow && (
+          <p className="flex items-center justify-center gap-2 text-xs font-medium text-tertiary-700" aria-live="polite">
+            <span className="size-1.5 animate-pulse rounded-full bg-tertiary-500" aria-hidden="true" />
+            Despertando el servidor…
+          </p>
+        )}
 
         <button
           type="button"

@@ -3,6 +3,7 @@ import { FileUp, Loader2 } from 'lucide-react'
 import { apiUpload } from '../../api/client.js'
 import { fetchRunStatus } from '../../api/predictions.js'
 import { invalidateMachines } from '../../api/machines.js'
+import { invalidatePeriods } from '../../api/periods.js'
 import { useToast } from '../../context/ToastContext.jsx'
 
 const ACCEPT = /\.(xlsx|xls|csv)$/i
@@ -37,6 +38,7 @@ export default function UploadExcelButton({ onUploaded, onFinished }) {
       const receipt = await apiUpload('/upload', form)
 
       invalidateMachines()
+      invalidatePeriods()
       const { records_inserted: ins, records_duplicated: dup, records_discarded: dis } = receipt
       toast(`${file.name}: ${ins} nuevos · ${dup} duplicados · ${dis} descartados`)
       onUploaded?.({ ...receipt, name: file.name })

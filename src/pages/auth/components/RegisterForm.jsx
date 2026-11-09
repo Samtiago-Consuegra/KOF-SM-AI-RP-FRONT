@@ -30,6 +30,7 @@ export default function RegisterForm({ onSwitch }) {
   const [show, setShow] = useState({ p: false, c: false })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const [slow, setSlow] = useState(false)
   const [serverError, setServerError] = useState('')
   const s = strength(form.password)
   const width = s === 0 ? '0%' : s === 1 ? '25%' : s === 2 ? '50%' : s === 3 ? '75%' : '100%'
@@ -50,7 +51,9 @@ export default function RegisterForm({ onSwitch }) {
     ev.preventDefault()
     if (!validate()) return
     setLoading(true)
+    setSlow(false)
     setServerError('')
+    const slowTimer = setTimeout(() => setSlow(true), 4000)
     try {
       await onRegister({ fullName: form.fullName, email: form.email, password: form.password })
       const me = await onGetMe()
@@ -58,6 +61,8 @@ export default function RegisterForm({ onSwitch }) {
     } catch (err) {
       setServerError(err?.message || 'Error al registrar usuario')
     } finally {
+      clearTimeout(slowTimer)
+      setSlow(false)
       setLoading(false)
     }
   }
@@ -187,6 +192,13 @@ export default function RegisterForm({ onSwitch }) {
             {loading && <Loader2 className="size-4 animate-spin" />}
             Crear cuenta
           </button>
+
+          {slow && (
+            <p className="flex items-center justify-center gap-2 text-xs font-medium text-tertiary-700" aria-live="polite">
+              <span className="size-1.5 animate-pulse rounded-full bg-tertiary-500" aria-hidden="true" />
+              Despertando el servidor…
+            </p>
+          )}
 
           <button
             type="button"

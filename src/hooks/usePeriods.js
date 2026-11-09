@@ -7,16 +7,26 @@ import { fetchPeriods } from '../api/periods.js'
  * Alimenta el dropdown de mes y los límites del calendario.
  */
 export function usePeriods() {
-  const [state, setState] = useState({ months: [], min: null, max: null })
+  const [state, setState] = useState({ months: [], min: null, max: null, loading: true })
   const [nonce, setNonce] = useState(0)
 
   useEffect(() => {
     let alive = true
+    setState((s) => ({ ...s, loading: true }))
     fetchPeriods()
       .then((d) => {
-        if (alive) setState({ months: d.months ?? [], min: d.min ?? null, max: d.max ?? null })
+        if (alive) {
+          setState({
+            months: d.months ?? [],
+            min: d.min ?? null,
+            max: d.max ?? null,
+            loading: false,
+          })
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (alive) setState((s) => ({ ...s, loading: false }))
+      })
     return () => { alive = false }
   }, [nonce])
 

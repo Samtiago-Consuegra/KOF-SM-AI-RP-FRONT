@@ -13,7 +13,7 @@ const ENDPOINT = '/eda/summary'
  *     (top de fallas, duración promedio y evolución).
  * Cuando el filtro es "todas" ambas coinciden y se hace una sola petición.
  */
-export function useEdaSummary(range, machineFilter) {
+export function useEdaSummary(range, machineFilter, enabled = true) {
   const [state, setState] = useState({ ctx: null, sel: null, loading: true, error: null })
   const [nonce, setNonce] = useState(0)
 
@@ -21,6 +21,10 @@ export function useEdaSummary(range, machineFilter) {
   const shared = machineFilter === ALL_GROUP
 
   useEffect(() => {
+    // El dashboard espera a que /eda/periodos cargue y a que el mes por defecto
+    // se haya corregido: así no se pide el resumen con un rango provisional.
+    if (!enabled) return undefined
+
     const controller = new AbortController()
     let alive = true
     const opts = { signal: controller.signal }
@@ -41,7 +45,7 @@ export function useEdaSummary(range, machineFilter) {
       alive = false
       controller.abort()
     }
-  }, [start, end, machineFilter, shared, nonce]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [start, end, machineFilter, shared, nonce, enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(() => setNonce((n) => n + 1), [])
 
