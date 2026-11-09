@@ -57,11 +57,11 @@ export async function eliminarParada(id) {
   return { ok: true }
 }
 export async function getPlanSugerido() { await new Promise((r) => setTimeout(r, 150)); return planSugerido }
-export async function enviarPlanACalendario(id, { fecha, horaInicio, horaFin }) {
+export async function enviarPlanACalendario(id, { fecha, horaInicio, horaFin, condicion = 'frio' }) {
   await new Promise((r) => setTimeout(r, 200))
   planSugerido = planSugerido.map((p) => p.id === id ? { ...p, enCalendario: true, parada: { ...p.parada, fecha, horaInicio, horaFin } } : p)
   const item = planSugerido.find((p) => p.id === id)
-  if (item && fecha) paradas = [...paradas, { id: 'p-plan-' + id, fecha, condicion: 'frio', maquina: item.maquina, maquinas: [item.maquina], tipo: 'Predictiva o sugerida por el sistema', titulo: item.tarea, horaInicio, horaFin, tareas: [item.tarea, 'Verificación', 'Pruebas'] }]
+  if (item && fecha) paradas = [...paradas, { id: 'p-plan-' + id, fecha, condicion: condicion || 'frio', maquina: item.maquina, maquinas: [item.maquina], tipo: 'Predictiva o sugerida por el sistema', titulo: item.tarea, horaInicio, horaFin, tareas: [item.tarea, 'Verificación', 'Pruebas'] }]
   return { ok: true }
 }
 export async function getTareasSugeridas() { await new Promise((r) => setTimeout(r, 150)); return tareasSugeridas }

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, CornerDownLeft, ListPlus, Info, CalendarPlus, Factory, ListChecks, Snowflake, Flame } from 'lucide-react'
+import { X, CornerDownLeft, ListPlus, Info, CalendarPlus, Factory, ListChecks } from 'lucide-react'
 import { programarParada, actualizarParada } from '../../services/mantenimientoService.js'
 import { MAQUINAS } from '../../data/mock/mantenimiento.js'
 import { useProgramarParada } from '../../hooks/useProgramarParada.js'
-import { CONDICION_OPTIONS } from '../../utils/paradas.js'
 import TareasComponenteCard from './TareasComponenteCard.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
+import CondicionSelector from './CondicionSelector.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
-
-const CONDICION_ICONS = { frio: Snowflake, caliente: Flame }
+import { inputCls, labelCls } from './modalFormStyles.js'
 
 function buildPrecargaFromEdit(parada) {
   if (!parada) return null
@@ -124,9 +123,6 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
 
   if (!open) return null
 
-  const inputCls = 'w-full h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 disabled:bg-neutral-50 disabled:text-ink-400'
-  const labelCls = 'mb-1 block text-xs font-medium text-ink-500'
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <style>{`
@@ -187,25 +183,7 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
 
                 <div>
                   <span className={labelCls}>Condición de la parada</span>
-                  <div role="radiogroup" aria-label="Condición de la parada" className="grid grid-cols-2 gap-2">
-                    {CONDICION_OPTIONS.map((opcion) => {
-                      const Icon = CONDICION_ICONS[opcion.value]
-                      const active = hook.condicion === opcion.value
-                      return (
-                        <button
-                          key={opcion.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={active}
-                          onClick={() => hook.setCondicion(opcion.value)}
-                          className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${active ? `${opcion.badge} font-semibold shadow-sm` : 'border-neutral-200 bg-white text-ink-600 hover:bg-neutral-50'}`}
-                        >
-                          <Icon className="size-4" aria-hidden="true" />
-                          {opcion.label}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <CondicionSelector value={hook.condicion} onChange={hook.setCondicion} />
                   {hook.errores.condicion && <p className="mt-1 text-xs text-primary-600">{hook.errores.condicion}</p>}
                   <p className="mt-1 text-[11px] text-ink-400">Independiente del tipo de tarea.</p>
                 </div>
