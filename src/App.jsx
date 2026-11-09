@@ -35,7 +35,6 @@ export default function App() {
         <Route path="/cumplimiento" element={<Cumplimiento />} />
         <Route path="/historia-clinica" element={<HistoriaClinica />} />
         <Route path="/mantenimiento" element={<Mantenimiento />} />
-        <Route path="/maquinas" element={<Proximamente title="Máquinas" />} />
         <Route path="/historial" element={<Proximamente title="Historial de Excel" />} />
         <Route path="/perfil" element={<Proximamente title="Perfil" />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

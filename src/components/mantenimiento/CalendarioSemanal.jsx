@@ -62,6 +62,9 @@ export default function CalendarioSemanal({ paradas = [], week, onParadaClick })
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-primary-500" /> Correctiva</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-ink-900" /> Predictiva o sugerida</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-neutral-400" /> Parada de producción</span>
+        <span className="hidden h-4 w-px bg-neutral-200 sm:inline-block" />
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-blue-500" /> En frío</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-orange-500" /> En caliente</span>
       </div>
     </div>
   )

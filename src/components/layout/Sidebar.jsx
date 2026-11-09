@@ -1,9 +1,8 @@
 import { NavLink } from 'react-router-dom'
-import { Activity, CalendarCog, ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, LogOut, Factory, UserRound, X } from 'lucide-react'
+import { Activity, CalendarCog, ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, LogOut, X } from 'lucide-react'
 import Avatar from '../ui/Avatar.jsx'
 import Logo from './Logo.jsx'
 import { useUser } from '../../context/UserContext.jsx'
-import { useMachines } from '../../hooks/useMachines.js'
 
 const ITEMS = [
   { to: '/dashboard', label: 'Dashboard (EDA)', icon: LayoutDashboard },
@@ -11,14 +10,11 @@ const ITEMS = [
   { to: '/mantenimiento', label: 'Planes de mantenimiento', icon: CalendarCog },
   { to: '/cumplimiento', label: 'Cumplimiento', icon: ClipboardCheck },
   { to: '/historia-clinica', label: 'Historia clínica', icon: FileText },
-  { to: '/maquinas', label: 'Máquinas', icon: Factory, countBadge: true },
   { to: '/historial', label: 'Historial de Excel', icon: FileSpreadsheet },
-  { to: '/perfil', label: 'Perfil', icon: UserRound },
 ]
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useUser()
-  const { machines } = useMachines()
 
   return (
     <>
@@ -41,8 +37,7 @@ export default function Sidebar({ open, onClose }) {
         <nav className="flex-1 overflow-y-auto p-3">
           <p className="px-3 pt-2 pb-2 text-xs font-semibold text-ink-400">Operaciones y monitoreo</p>
           <ul className="space-y-1">
-            {ITEMS.map(({ to, label, icon: Icon, countBadge }) => {
-              const badge = countBadge && machines.length ? machines.length : 0
+            {ITEMS.map(({ to, label, icon: Icon }) => {
               return (
                 <li key={to}>
                   <NavLink
@@ -57,7 +52,6 @@ export default function Sidebar({ open, onClose }) {
                   >
                     <Icon className="size-[18px]" />
                     <span className="flex-1">{label}</span>
-                    {badge > 0 && <span className="rounded-full bg-ink-50 text-ink-700 text-xs font-semibold px-2 py-0.5">{badge}</span>}
                   </NavLink>
                 </li>
               )

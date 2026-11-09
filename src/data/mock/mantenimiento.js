@@ -28,11 +28,20 @@ export function buildParadasSemana({ startISO }) {
   const d5 = new Date(startISO); d5.setDate(d5.getDate() + 4)
   const iso = (x) => x.toISOString().slice(0, 10)
   return [
-    { id: 'p-1', fecha: iso(d1), maquina: 'Llenadora', tipo: 'Preventiva', titulo: 'Lubricación y revisión general', horaInicio: '06:00', horaFin: '10:00', tareas: ['Lubricación puntos críticos', 'Revisión de correas', 'Inspección de fugas', 'Ajuste de tensiones', 'Limpieza zona'] },
-    { id: 'p-2', fecha: iso(d1), maquina: 'Empacadora', tipo: 'Correctiva', titulo: 'Reemplazo sellos cabezal', horaInicio: '11:00', horaFin: '14:00', tareas: ['Retiro cabezal', 'Cambio sellos', 'Pruebas', 'Ajustes'] },
-    { id: 'p-3', fecha: iso(d2), maquina: 'Paletizadora', tipo: 'Predictiva o sugerida por el sistema', titulo: 'Revisión gripper y brazo', horaInicio: '07:00', horaFin: '09:00', tareas: ['Inspección gripper', 'Revisión neumática', 'Calibración', 'Pruebas'] },
-    { id: 'p-4', fecha: iso(d3), maquina: 'Envolvedora', tipo: 'Parada de producción (limpieza, cambio de formato)', titulo: 'Cambio de formato', horaInicio: '05:00', horaFin: '07:00', tareas: ['Cambio bobina', 'Ajuste guías', 'Limpieza'] },
-    { id: 'p-5', fecha: iso(d5), maquina: 'Llenadora', tipo: 'Preventiva', titulo: 'Inspección hidráulica', horaInicio: '13:00', horaFin: '16:00', tareas: ['Revisión mangueras', 'Cambio filtros', 'Presión', 'Sellos'] },
+    { id: 'p-1', fecha: iso(d1), condicion: 'frio', maquina: 'Llenadora', maquinas: ['Llenadora'], tipo: 'Preventiva', titulo: 'Lubricación y revisión general', horaInicio: '06:00', horaFin: '10:00', tareas: ['Lubricación puntos críticos', 'Revisión de correas', 'Inspección de fugas', 'Ajuste de tensiones', 'Limpieza zona'] },
+    { id: 'p-2', fecha: iso(d1), condicion: 'caliente', maquina: 'Empacadora', maquinas: ['Empacadora'], tipo: 'Correctiva', titulo: 'Reemplazo sellos cabezal', horaInicio: '11:00', horaFin: '14:00', tareas: ['Retiro cabezal', 'Cambio sellos', 'Pruebas', 'Ajustes'] },
+    {
+      id: 'p-3', fecha: iso(d2), condicion: 'frio', maquina: 'Paletizadora', maquinas: ['Paletizadora', 'Empacadora'], tipo: 'Predictiva o sugerida por el sistema', titulo: 'Revisión gripper y brazo', horaInicio: '07:00', horaFin: '09:00',
+      tareas: ['Inspección gripper', 'Verificación encoder', 'Revisión cabezal sellador', 'Ajuste transportador'],
+      tareasDetalle: [
+        { maquina: 'Paletizadora', sistema: 'Robótica', sistemaId: 'robotica', componente: 'Gripper', componenteId: 'gripper', tipo: 'Predictiva', descripcion: 'Inspección gripper' },
+        { maquina: 'Paletizadora', sistema: 'Control', sistemaId: 'control', componente: 'Encoder', componenteId: 'encoder', tipo: 'Preventiva', descripcion: 'Verificación encoder' },
+        { maquina: 'Empacadora', sistema: 'Sistema de sellado', sistemaId: 'sellado', componente: 'Cabezal sellador', componenteId: 'cabezal-sellador', tipo: 'Preventiva', descripcion: 'Revisión cabezal sellador' },
+        { maquina: 'Empacadora', sistema: 'Transporte', sistemaId: 'transporte', componente: 'Transportador de botellas', componenteId: 'transportador', tipo: 'Correctiva', descripcion: 'Ajuste transportador' },
+      ],
+    },
+    { id: 'p-4', fecha: iso(d3), condicion: 'caliente', maquina: 'Envolvedora', maquinas: ['Envolvedora'], tipo: 'Parada de producción (limpieza, cambio de formato)', titulo: 'Cambio de formato', horaInicio: '05:00', horaFin: '07:00', tareas: ['Cambio bobina', 'Ajuste guías', 'Limpieza'] },
+    { id: 'p-5', fecha: iso(d5), condicion: 'frio', maquina: 'Llenadora', maquinas: ['Llenadora'], tipo: 'Preventiva', titulo: 'Inspección hidráulica', horaInicio: '13:00', horaFin: '16:00', tareas: ['Revisión mangueras', 'Cambio filtros', 'Presión', 'Sellos'] },
   ]
 }
 

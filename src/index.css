@@ -66,6 +66,22 @@
   --color-neutral-300: #c9ccd2;
   --color-neutral-400: #a1a5ad;
 
+  /* Blue · condición "En frío" */
+  --color-blue-50: #eff6ff;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+
+  /* Orange · condición "En caliente" */
+  --color-orange-50: #fff7ed;
+  --color-orange-200: #fed7aa;
+  --color-orange-300: #fdba74;
+  --color-orange-500: #f97316;
+  --color-orange-600: #ea580c;
+  --color-orange-700: #c2410c;
+
   --animate-spin-once: spin 0.8s linear 1;
 }
 
@@ -94,13 +110,45 @@ body {
   }
 }
 
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) transparent;
+}
 .scroll-thin::-webkit-scrollbar {
   height: 6px;
   width: 6px;
 }
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
 .scroll-thin::-webkit-scrollbar-thumb {
   background: var(--color-neutral-300);
   border-radius: 99px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
+
+/* Scroll principal del modal de paradas: visible y estable */
+.scroll-visible {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-neutral-400) var(--color-neutral-100);
+  scrollbar-gutter: stable;
+}
+.scroll-visible::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scroll-visible::-webkit-scrollbar-track {
+  background: var(--color-neutral-100);
+}
+.scroll-visible::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-400);
+  border: 2px solid var(--color-neutral-100);
+  border-radius: 99px;
+}
+.scroll-visible::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-400);
 }
 
 /* Keyframes de Historia clínica (se respetan con prefers-reduced-motion) */

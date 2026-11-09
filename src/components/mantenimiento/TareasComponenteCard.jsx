@@ -6,7 +6,7 @@ const TIPOS_BADGE = {
   Predictiva: 'bg-ink-100 text-ink-700',
 }
 
-export default function TareasComponenteCard({ card, editingCardId, editingTask, onConfirmar, onEditar, onEliminarTarea, onCargarTarea, onMouseEnterTarea }) {
+export default function TareasComponenteCard({ card, editingCardId, editingTask, onConfirmar, onEditar, onEliminarTarea, onCargarTarea, onMouseEnterTarea, mostrarMaquina = true }) {
   const isEditing = card.estado === 'edicion'
   const isConfirmada = card.estado === 'confirmada'
   const isAbierta = card.estado === 'abierta'
@@ -29,7 +29,7 @@ export default function TareasComponenteCard({ card, editingCardId, editingTask,
       `}</style>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-ink-500">{card.maquina}</p>
+          {mostrarMaquina && <p className="text-xs text-ink-500">{card.maquina}</p>}
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-semibold text-ink-900">{card.sistemaNombre} · {card.componenteNombre}</p>
             {isConfirmada && <CheckCircle2 className="size-4 text-tertiary-600" />}

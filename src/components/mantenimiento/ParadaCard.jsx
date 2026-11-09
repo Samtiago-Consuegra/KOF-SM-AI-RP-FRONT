@@ -1,4 +1,6 @@
-import { ListChecks } from 'lucide-react'
+import { Factory, ListChecks } from 'lucide-react'
+import CondicionParadaBadge from './CondicionParadaBadge.jsx'
+import { resumenMaquinas, textoMaquinas } from '../../utils/paradas.js'
 
 const COLORS = {
   'Preventiva': { border: 'border-l-tertiary-600', bg: 'bg-tertiary-50' },
@@ -21,9 +23,20 @@ export default function ParadaCard({ parada, onClick }) {
       className={"rounded-lg border border-neutral-200 border-l-3 " + c.border + " " + c.bg + " p-2 cursor-pointer hover:shadow-sm active:scale-[0.98] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"}
       title={(parada.tareasDetalle || tareas).map(t => typeof t === 'string' ? t : t.descripcion).join('\n')}
     >
-      <p className="text-xs text-ink-600">{parada.horaInicio} – {parada.horaFin}</p>
+      <p className="flex items-center justify-between gap-1 text-xs text-ink-600">
+        <span>{parada.horaInicio} – {parada.horaFin}</span>
+        <CondicionParadaBadge condicion={parada.condicion} iconOnly />
+      </p>
       <p className="text-sm font-medium text-ink-900 line-clamp-2">{parada.titulo}</p>
-      <p className="mt-1 flex items-center gap-1 text-xs text-ink-600"><ListChecks className="size-3" /> {count} tareas</p>
+      <div className="mt-1 flex items-center justify-between gap-1 text-xs text-ink-600">
+        <span className="flex min-w-0 items-center gap-1" title={textoMaquinas(parada) || 'Sin máquina'}>
+          <Factory className="size-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{resumenMaquinas(parada)}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1">
+          <ListChecks className="size-3" aria-hidden="true" /> {count}
+        </span>
+      </div>
     </div>
   )
 }

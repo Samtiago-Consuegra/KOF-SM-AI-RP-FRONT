@@ -1,6 +1,7 @@
 // Constantes de estilo para exportaciones Excel (exceljs). ARGB con prefijo FF.
 // Usa EXCLUSIVAMENTE la paleta del proyecto (@theme): primary #F40000, ink #111827,
-// tertiary #0D9488, neutral #F8F9FA (y tonos 50-900). Definidos UNA sola vez aquí.
+// tertiary #0D9488, blue (frío), orange (caliente), neutral #F8F9FA (y tonos 50-900).
+// Definidos UNA sola vez aquí.
 export const PALETTE = {
   primary50: 'FFFFF1F0',
   primary500: 'FFF40000',
@@ -15,6 +16,14 @@ export const PALETTE = {
   tertiary500: 'FF13AB9C',
   tertiary600: 'FF0D9488',
   tertiary700: 'FF0A6B62',
+  blue50: 'FFEFF6FF',
+  blue500: 'FF3B82F6',
+  blue600: 'FF2563EB',
+  blue700: 'FF1D4ED8',
+  orange50: 'FFFFF7ED',
+  orange500: 'FFF97316',
+  orange600: 'FFEA580C',
+  orange700: 'FFC2410C',
   neutral50: 'FFF8F9FA',
   neutral100: 'FFEFF0F2',
   neutral200: 'FFE2E4E8',
@@ -114,6 +123,12 @@ export function tipoTareaStyle(tipoRaw = '') {
   if (/predictiva/i.test(t)) return { label: 'Predictiva', fill: PALETTE.ink100, fontColor: PALETTE.ink900 }
   if (/correctiva/i.test(t)) return { label: 'Correctiva', fill: PALETTE.primary50, fontColor: PALETTE.primary600 }
   return { label: 'Preventiva', fill: PALETTE.tertiary50, fontColor: PALETTE.tertiary700 }
+}
+
+export function condicionParadaStyle(condicion) {
+  if (condicion === 'caliente') return { label: 'En caliente', fill: PALETTE.orange50, fontColor: PALETTE.orange700 }
+  if (condicion === 'frio') return { label: 'En frío', fill: PALETTE.blue50, fontColor: PALETTE.blue700 }
+  return { label: 'Sin definir', fill: PALETTE.neutral100, fontColor: PALETTE.ink500 }
 }
 
 export async function downloadWorkbook(wb, filename) {

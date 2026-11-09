@@ -10,8 +10,10 @@ import {
   setupSheet,
   tipoParadaStyle,
   tipoTareaStyle,
+  condicionParadaStyle,
   downloadWorkbook,
 } from './excelExportStyles.js'
+import { textoMaquinas } from './paradas.js'
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const FONT = 'Calibri'
@@ -64,7 +66,7 @@ export function buildParadasSemanaWorkbook(paradas = [], week, { now = new Date(
 
   const wb = new ExcelJS.Workbook()
   wb.creator = 'KOF SMART'
-  const lastCol = 'J'
+  const lastCol = 'K'
   const sheetName = `Paradas semana ${week.weekNum}`.slice(0, 31)
   const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 7 }] })
 
@@ -77,7 +79,7 @@ export function buildParadasSemanaWorkbook(paradas = [], week, { now = new Date(
   ], lastCol)
   ws.getRow(6).height = 6
 
-  const headers = ['Fecha', 'Día', 'Hora de inicio', 'Hora de fin', 'Duración (h)', 'Máquina', 'Tipo de parada', 'Título', 'Tareas', 'Lista de tareas']
+  const headers = ['Fecha', 'Día', 'Hora de inicio', 'Hora de fin', 'Duración (h)', 'Máquina(s)', 'Condición', 'Tipo de parada', 'Título', 'Tareas', 'Lista de tareas']
   writeHeader(ws, 7, headers)
 
   const dataStart = 8
@@ -91,6 +93,7 @@ export function buildParadasSemanaWorkbook(paradas = [], week, { now = new Date(
     const d = p.fecha ? new Date(p.fecha + 'T00:00:00') : null
     const dur = parseDuracionHoras(p.horaInicio, p.horaFin)
     const tipo = tipoParadaStyle(p.tipo)
+    const condicion = condicionParadaStyle(p.condicion)
     const lista = tareas.map((t) => `• ${t.descripcion}`).join('\n')
 
     setCell(ws, `A${r}`, d, { numFmt: 'dd/mm/yyyy', alignment: { vertical: 'top' } })
@@ -98,31 +101,36 @@ export function buildParadasSemanaWorkbook(paradas = [], week, { now = new Date(
     setCell(ws, `C${r}`, p.horaInicio || '', { alignment: { vertical: 'top' }, numFmt: '@' })
     setCell(ws, `D${r}`, p.horaFin || '', { alignment: { vertical: 'top' }, numFmt: '@' })
     setCell(ws, `E${r}`, dur, { alignment: { vertical: 'top' }, numFmt: '0.0' })
-    setCell(ws, `F${r}`, p.maquina || '', { alignment: { vertical: 'top' } })
-    setCell(ws, `G${r}`, tipo.label, {
+    setCell(ws, `F${r}`, textoMaquinas(p) || p.maquina || '', { alignment: { vertical: 'top' } })
+    setCell(ws, `G${r}`, condicion.label, {
+      alignment: { vertical: 'top', horizontal: 'center' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: condicion.fill } },
+      font: { bold: true, color: { argb: condicion.fontColor } },
+    })
+    setCell(ws, `H${r}`, tipo.label, {
       alignment: { vertical: 'top', horizontal: 'center' },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: tipo.fill } },
       font: { bold: true, color: { argb: tipo.fontColor } },
     })
-    setCell(ws, `H${r}`, p.titulo || '', { alignment: { vertical: 'top', wrapText: true } })
-    setCell(ws, `I${r}`, tareas.length, { alignment: { vertical: 'top', horizontal: 'center' } })
-    setCell(ws, `J${r}`, lista, { alignment: { vertical: 'top', wrapText: true } })
+    setCell(ws, `I${r}`, p.titulo || '', { alignment: { vertical: 'top', wrapText: true } })
+    setCell(ws, `J${r}`, tareas.length, { alignment: { vertical: 'top', horizontal: 'center' } })
+    setCell(ws, `K${r}`, lista, { alignment: { vertical: 'top', wrapText: true } })
     if (tareas.length > 1) ws.getRow(r).height = Math.max(20, 15 * tareas.length)
   })
 
   const dataEnd = rows.length ? dataStart + rows.length - 1 : dataStart - 1
-  if (rows.length) styleDataBorders(ws, 7, dataEnd, 1, 10, { dayBreakRows })
+  if (rows.length) styleDataBorders(ws, 7, dataEnd, 1, 11, { dayBreakRows })
 
   // Totales
   const totR = (rows.length ? dataEnd : 7) + 1
   ws.mergeCells(`A${totR}:D${totR}`)
   setCell(ws, `A${totR}`, 'Total', { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } }, alignment: { vertical: 'middle' } })
   setCell(ws, `E${totR}`, totalHoras, { font: { bold: true }, numFmt: '0.0', fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } }, alignment: { vertical: 'middle' } })
-  ;['F','G','H'].forEach(col => setCell(ws, `${col}${totR}`, '', { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } } }))
-  setCell(ws, `I${totR}`, totalTareas, { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } }, alignment: { vertical: 'middle', horizontal: 'center' } })
-  setCell(ws, `J${totR}`, '', { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } } })
+  ;['F','G','H','I'].forEach(col => setCell(ws, `${col}${totR}`, '', { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } } }))
+  setCell(ws, `J${totR}`, totalTareas, { font: { bold: true }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } }, alignment: { vertical: 'middle', horizontal: 'center' } })
+  setCell(ws, `K${totR}`, '', { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: PALETTE.neutral100 } } })
   // top border ink-900 on totals row
-  for (let c = 1; c <= 10; c++) {
+  for (let c = 1; c <= 11; c++) {
     const cell = ws.getCell(totR, c)
     cell.border = { ...(cell.border || {}), top: { style: 'medium', color: { argb: PALETTE.ink900 } } }
   }
@@ -135,9 +143,13 @@ export function buildParadasSemanaWorkbook(paradas = [], week, { now = new Date(
     { label: 'Predictiva', ...(() => { const s = tipoParadaStyle('Predictiva'); return { fill: s.fill, fontColor: s.fontColor } })() },
     { label: 'Producción', ...(() => { const s = tipoParadaStyle('Parada de producción'); return { fill: s.fill, fontColor: s.fontColor } })() },
   ])
+  writeLegend(ws, legR + 1, 'Leyenda · condición de la parada', [
+    { label: 'En frío', ...(() => { const s = condicionParadaStyle('frio'); return { fill: s.fill, fontColor: s.fontColor } })() },
+    { label: 'En caliente', ...(() => { const s = condicionParadaStyle('caliente'); return { fill: s.fill, fontColor: s.fontColor } })() },
+  ])
 
-  ws.autoFilter = { from: 'A7', to: `J${Math.max(7, dataEnd)}` }
-  ;[12, 6, 10, 10, 11, 14, 14, 34, 8, 48].forEach((w, i) => { ws.getColumn(i + 1).width = w })
+  ws.autoFilter = { from: 'A7', to: `K${Math.max(7, dataEnd)}` }
+  ;[12, 6, 10, 10, 11, 20, 14, 14, 34, 8, 48].forEach((w, i) => { ws.getColumn(i + 1).width = w })
   ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
 
   // Hoja 2: Tareas
@@ -149,10 +161,10 @@ export function buildParadasSemanaWorkbook(paradas = [], week, { now = new Date(
 
 function buildTareasSheet(wb, paradas, week, now) {
   const ws = wb.addWorksheet('Tareas', { views: [{ state: 'frozen', ySplit: 7 }] })
-  const lastCol = 'H'
+  const lastCol = 'I'
   mergeTitle(ws, 1, `Tareas programadas · Semana ${week.weekNum}`, lastCol)
   ws.getRow(2).height = 6
-  const tareasAll = paradas.flatMap((p) => tareasDeParada(p).map((t) => ({ ...t, fecha: p.fecha, titulo: p.titulo })))
+  const tareasAll = paradas.flatMap((p) => tareasDeParada(p).map((t) => ({ ...t, fecha: p.fecha, titulo: p.titulo, condicion: p.condicion })))
   writeMeta(ws, 3, [
     { label: 'Generado', value: fmtGenerado(now) },
     { label: 'Período', value: fmtPeriodo(week) },
@@ -160,30 +172,36 @@ function buildTareasSheet(wb, paradas, week, now) {
   ], lastCol)
   ws.getRow(6).height = 6
 
-  const headers = ['Fecha', 'Día', 'Parada (título)', 'Máquina', 'Sistema', 'Componente', 'Tipo de tarea', 'Tarea']
+  const headers = ['Fecha', 'Día', 'Condición', 'Parada (título)', 'Máquina', 'Sistema', 'Componente', 'Tipo de tarea', 'Tarea']
   writeHeader(ws, 7, headers)
   const dataStart = 8
   tareasAll.forEach((t, i) => {
     const r = dataStart + i
     const d = t.fecha ? new Date(t.fecha + 'T00:00:00') : null
     const tipo = tipoTareaStyle(t.tipo)
+    const condicion = condicionParadaStyle(t.condicion)
     setCell(ws, `A${r}`, d, { numFmt: 'dd/mm/yyyy', alignment: { vertical: 'top' } })
     setCell(ws, `B${r}`, d ? DIAS[d.getDay()] : '', { alignment: { vertical: 'top', horizontal: 'center' } })
-    setCell(ws, `C${r}`, t.titulo || '', { alignment: { vertical: 'top', wrapText: true } })
-    setCell(ws, `D${r}`, t.maquina || '', { alignment: { vertical: 'top' } })
-    setCell(ws, `E${r}`, t.sistema || '', { alignment: { vertical: 'top' } })
-    setCell(ws, `F${r}`, t.componente || '', { alignment: { vertical: 'top' } })
-    setCell(ws, `G${r}`, tipo.label, {
+    setCell(ws, `C${r}`, condicion.label, {
+      alignment: { vertical: 'top', horizontal: 'center' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: condicion.fill } },
+      font: { bold: true, color: { argb: condicion.fontColor } },
+    })
+    setCell(ws, `D${r}`, t.titulo || '', { alignment: { vertical: 'top', wrapText: true } })
+    setCell(ws, `E${r}`, t.maquina || '', { alignment: { vertical: 'top' } })
+    setCell(ws, `F${r}`, t.sistema || '', { alignment: { vertical: 'top' } })
+    setCell(ws, `G${r}`, t.componente || '', { alignment: { vertical: 'top' } })
+    setCell(ws, `H${r}`, tipo.label, {
       alignment: { vertical: 'top', horizontal: 'center' },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: tipo.fill } },
       font: { bold: true, color: { argb: tipo.fontColor } },
     })
-    setCell(ws, `H${r}`, t.descripcion || '', { alignment: { vertical: 'top', wrapText: true } })
+    setCell(ws, `I${r}`, t.descripcion || '', { alignment: { vertical: 'top', wrapText: true } })
   })
   const dataEnd = tareasAll.length ? dataStart + tareasAll.length - 1 : 7
-  if (tareasAll.length) styleDataBorders(ws, 7, dataEnd, 1, 8)
-  ws.autoFilter = { from: 'A7', to: `H${Math.max(7, dataEnd)}` }
-  ;[12, 6, 30, 14, 18, 20, 14, 44].forEach((w, i) => { ws.getColumn(i + 1).width = w })
+  if (tareasAll.length) styleDataBorders(ws, 7, dataEnd, 1, 9)
+  ws.autoFilter = { from: 'A7', to: `I${Math.max(7, dataEnd)}` }
+  ;[12, 6, 14, 30, 14, 18, 20, 14, 44].forEach((w, i) => { ws.getColumn(i + 1).width = w })
   ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
 }
 

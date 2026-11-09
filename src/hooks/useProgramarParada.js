@@ -6,6 +6,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
   const [fecha, setFecha] = useState(initialPrecarga?.fecha || new Date().toISOString().slice(0, 10))
   const [horaInicio, setHoraInicio] = useState(initialPrecarga?.horaInicio || '06:00')
   const [horaFin, setHoraFin] = useState(initialPrecarga?.horaFin || '10:00')
+  const [condicion, setCondicion] = useState(initialPrecarga?.condicion || 'frio')
   const [maquina, setMaquina] = useState(initialPrecarga?.maquina || '')
   const [sistema, setSistema] = useState(initialPrecarga?.sistema || '')
   const [componente, setComponente] = useState(initialPrecarga?.componente || '')
@@ -67,6 +68,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     if (!horaInicio) newErr.horaInicio = 'Requerido'
     if (!horaFin) newErr.horaFin = 'Requerido'
     if (horaInicio && horaFin && horaFin <= horaInicio) newErr.horaFin = 'Debe ser posterior a la hora de inicio'
+    if (!condicion) newErr.condicion = 'Requerido'
     if (!maquina) newErr.maquina = 'Requerido'
     if (!sistema) newErr.sistema = 'Requerido'
     if (!componente) newErr.componente = 'Requerido'
@@ -181,6 +183,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     if (!horaInicio) newErr.horaInicio = 'Requerido'
     if (!horaFin) newErr.horaFin = 'Requerido'
     if (horaInicio && horaFin && horaFin <= horaInicio) newErr.horaFin = 'Debe ser posterior a la hora de inicio'
+    if (!condicion) newErr.condicion = 'Requerido'
     setErrores(newErr)
     if (Object.keys(newErr).length > 0) return false
     if (cards.length === 0) return false
@@ -210,13 +213,16 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     let tipoPred = 'Preventiva'
     if (counts.Correctiva >= counts.Predictiva && counts.Correctiva >= counts.Preventiva) tipoPred = 'Correctiva'
     else if (counts.Predictiva >= counts.Preventiva) tipoPred = 'Predictiva'
-    
+    const maquinas = [...new Set(cards.map((card) => card.maquina).filter(Boolean))]
+
     return {
       titulo,
       fecha,
       horaInicio,
       horaFin,
-      maquina: cards[0]?.maquina || maquina,
+      condicion,
+      maquinas,
+      maquina: maquinas[0] || maquina,
       tipo: tipoPred,
       tareas: tareas.map(t => t.descripcion),
       tareasDetalle: tareas
@@ -228,6 +234,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     fecha, setFecha,
     horaInicio, setHoraInicio,
     horaFin, setHoraFin,
+    condicion, setCondicion,
     maquina, setMaquina: onChangeMaquina,
     sistema, setSistema: onChangeSistema,
     componente, setComponente: onChangeComponente,
