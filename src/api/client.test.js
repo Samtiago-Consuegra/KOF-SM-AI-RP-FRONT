@@ -1,31 +1,65 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { apiGet, apiUpload } from './client.js'
+import { apiGet, apiUpload, clearApiCache } from './client.js'
 
-describe('caché GET de client.js', () => {
+function jsonResponse(payload) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+describe('client.js: aviso de lentitud y caché', () => {
+  let dispatchEvent
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    // Vitest corre en entorno node: simulamos solo lo que client.js necesita.
+    dispatchEvent = vi.fn()
+    vi.stubGlobal('window', { dispatchEvent })
+  })
+
   afterEach(() => {
+    clearApiCache()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
-  it('reutiliza una respuesta dentro del TTL y la descarta tras un upload', async () => {
-    const fetchMock = vi.fn(async (url) => {
-      const payload = String(url).includes('/upload') ? { ok: true } : [{ machine: 'Llenadora' }]
-      return new Response(JSON.stringify(payload), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+  it('apiUpload no avisa lentitud aunque tarde más de 4 s y clearApiCache() fuerza un GET nuevo', async () => {
+    let releaseUpload
+    let uploadRequested = false
+
+    const fetchMock = vi.fn((input) => {
+      const url = String(input)
+      if (url.includes('/upload')) {
+        uploadRequested = true
+        return new Promise((resolve) => {
+          releaseUpload = () => resolve(jsonResponse({ ok: true }))
+        })
+      }
+      return Promise.resolve(jsonResponse([{ machine: 'Llenadora' }]))
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const first = await apiGet('/machines')
-    const second = await apiGet('/machines')
+    const upload = apiUpload('/upload', new FormData())
+    expect(uploadRequested).toBe(true)
 
-    expect(first).toEqual(second)
+    // Pasados los 4 s la subida sigue pendiente: no debe salir kof:slow-api.
+    await vi.advanceTimersByTimeAsync(5000)
+    const emitted = dispatchEvent.mock.calls.map(([event]) => event?.type)
+    expect(emitted).not.toContain('kof:slow-api')
+
+    releaseUpload()
+    await upload
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
-    await apiUpload('/upload', new FormData())
+    // Dos GET seguidos: el segundo sale de la caché.
+    await apiGet('/machines')
+    await apiGet('/machines')
     expect(fetchMock).toHaveBeenCalledTimes(2)
 
+    // clearApiCache() obliga a repetir la petición.
+    clearApiCache()
     await apiGet('/machines')
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })

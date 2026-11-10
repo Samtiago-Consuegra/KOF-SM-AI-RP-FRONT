@@ -23,7 +23,6 @@ import {
   getResumenExportacion,
 } from '../services/historiaClinicaService'
 import { resolveTimeRange } from '../utils/period.js'
-import { exportHistoriaPdf } from '../utils/exportHistoriaPdf.js'
 import { toISODate } from '../utils/format.js'
 
 // Últimos 12 meses como límites del filtro de periodo (mock local, sin backend).
@@ -198,6 +197,9 @@ export default function HistoriaClinica() {
       sistema: sistemaId || null,
       componente: componenteId || null,
     })
+    // jsPDF + autotable pesan ~1 MB: se descargan recién al exportar. El modal
+    // ya muestra su spinner mientras se resuelve esta promesa.
+    const { exportHistoriaPdf } = await import('../utils/exportHistoriaPdf.js')
     await exportHistoriaPdf(resumen)
   }, [maquina, sistemaId, componenteId])
 

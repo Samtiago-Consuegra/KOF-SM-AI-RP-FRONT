@@ -135,6 +135,15 @@ function writeCache(key, value) {
 }
 
 /**
+ * Vacía la caché corta de GET. Se usa tras subir un Excel, cuando el backend
+ * puede estar recalculando la matriz en segundo plano y la vista previa debe
+ * volver a pedirse al terminar.
+ */
+export function clearApiCache() {
+  getCache.clear()
+}
+
+/**
  * Despierta el backend en paralelo al render. Render (u otro host gratuito) duerme la
  * instancia tras un rato sin tráfico; /health no exige token y responde en cuanto el
  * proceso está arriba. La promesa se guarda para que un segundo montaje no repita la
@@ -164,7 +173,7 @@ export function warmUpApi() {
   return warmUpPromise
 }
 
-async function request(path, { params, signal, body, headers, auth = true } = {}) {
+async function request(path, { params, signal, body, headers, auth = true, trackSlow = true } = {}) {
   const method = body !== undefined && body !== null ? 'POST' : 'GET'
   const query = buildQuery(params)
   const cacheKey = `${path}${query}`
@@ -175,7 +184,9 @@ async function request(path, { params, signal, body, headers, auth = true } = {}
     if (cached !== undefined) return cached
   }
 
-  const doneSlow = beginSlowWatch()
+  // Subir un Excel o recalcular la matriz puede tardar, pero es una acción que
+  // el usuario ya espera: no debe disparar el aviso de "servidor lento".
+  const doneSlow = trackSlow ? beginSlowWatch() : () => {}
   try {
     let res
     try {
@@ -215,9 +226,9 @@ export const apiGet = (path, params, opts) => request(path, { ...opts, params })
 export const apiPost = (path, body, opts) => request(path, { ...opts, body })
 
 export async function apiUpload(path, formData, opts) {
-  const result = await request(path, { ...opts, body: formData })
+  const result = await request(path, { ...opts, body: formData, trackSlow: false })
   // El Excel puede traer máquinas, periodos y predicciones nuevas.
-  getCache.clear()
+  clearApiCache()
   return result
 }
 

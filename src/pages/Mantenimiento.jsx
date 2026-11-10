@@ -3,7 +3,6 @@ import PageHeader from '../components/ui/PageHeader.jsx'
 import { Upload, ChevronLeft, ChevronRight, CalendarPlus, FileDown, Bot, X, Loader2, Check } from 'lucide-react'
 import { useMantenimientoWeek, weekLegend } from '../hooks/useMantenimientoWeek.js'
 import { getAlertasSemana, getArchivosSemana, getParadasSemana, getPlanSugerido, getTareasSugeridas } from '../services/mantenimientoService.js'
-import { exportarParadasSemana } from '../utils/exportExcel.js'
 import SubirArchivoModal from '../components/mantenimiento/SubirArchivoModal.jsx'
 import AlertasCarousel from '../components/mantenimiento/AlertasCarousel.jsx'
 import CalendarioSemanal from '../components/mantenimiento/CalendarioSemanal.jsx'
@@ -79,6 +78,9 @@ export default function Mantenimiento() {
     if (exportingSemana) return
     setExportingSemana(true)
     try {
+      // ExcelJS pesa ~1 MB: solo se descarga al pulsar exportar. El botón ya
+      // muestra el spinner mientras dura el import y la generación.
+      const { exportarParadasSemana } = await import('../utils/exportExcel.js')
       const res = await exportarParadasSemana(paradas, week)
       if (res?.ok === false) {
         setToast({ message: 'No hay paradas para exportar en esta semana' })

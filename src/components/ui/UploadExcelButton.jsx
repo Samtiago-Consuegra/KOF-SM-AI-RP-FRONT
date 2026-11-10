@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { FileUp, Loader2 } from 'lucide-react'
-import { apiUpload } from '../../api/client.js'
+import { apiUpload, clearApiCache } from '../../api/client.js'
 import { fetchRunStatus } from '../../api/predictions.js'
 import { invalidateMachines } from '../../api/machines.js'
 import { invalidatePeriods } from '../../api/periods.js'
@@ -49,8 +49,12 @@ export default function UploadExcelButton({ onUploaded, onFinished }) {
         if (status === 'timeout') toast('El recálculo sigue en curso; se actualizará al terminar.')
         else if (status === 'error') toast('Falló el recálculo de predicciones.', 'error')
         else toast('Predicciones actualizadas')
+        // Durante el sondeo la vista previa pudo quedar cacheada con datos
+        // viejos: se invalida para que se vuelva a pedir con el resultado nuevo.
+        clearApiCache()
         onFinished?.()
       } else {
+        clearApiCache()
         onFinished?.()
       }
     } catch (err) {

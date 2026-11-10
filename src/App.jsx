@@ -1,15 +1,19 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/layout/Layout.jsx'
 import Logo from './components/layout/Logo.jsx'
 import ServerWakeBanner from './components/ui/ServerWakeBanner.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Predicciones from './pages/Predicciones.jsx'
-import Cumplimiento from './pages/Cumplimiento.jsx'
-import HistoriaClinica from './pages/HistoriaClinica.jsx'
-import Mantenimiento from './pages/Mantenimiento.jsx'
-import Proximamente from './pages/Proximamente.jsx'
-import LoginPage from './pages/auth/LoginPage.jsx'
 import { useUser } from './context/UserContext.jsx'
+
+// Cada pantalla viaja en su propio chunk: el login no descarga el dashboard ni
+// las librerías de gráficas, y las vistas pesadas se piden solo al entrar.
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+const Predicciones = lazy(() => import('./pages/Predicciones.jsx'))
+const Cumplimiento = lazy(() => import('./pages/Cumplimiento.jsx'))
+const HistoriaClinica = lazy(() => import('./pages/HistoriaClinica.jsx'))
+const Mantenimiento = lazy(() => import('./pages/Mantenimiento.jsx'))
+const Proximamente = lazy(() => import('./pages/Proximamente.jsx'))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage.jsx'))
 
 function SplashScreen() {
   return (
@@ -65,7 +69,7 @@ export default function App() {
   return (
     <>
       <ServerWakeBanner />
-      {content}
+      <Suspense fallback={<SplashScreen />}>{content}</Suspense>
     </>
   )
 }

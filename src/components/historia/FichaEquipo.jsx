@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Hourglass, Shuffle, Flame, Factory } from 'lucide-react'
-import llenadora from '../../assets/maquinas/llenadora.png'
-import empacadora from '../../assets/maquinas/empacadora.png'
-import paletizadora from '../../assets/maquinas/paletizadora.png'
-import envolvedora from '../../assets/maquinas/envolvedora.png'
+import llenadora from '../../assets/maquinas/llenadora.webp'
+import empacadora from '../../assets/maquinas/empacadora.webp'
+import paletizadora from '../../assets/maquinas/paletizadora.webp'
+import envolvedora from '../../assets/maquinas/envolvedora.webp'
 
 const IMAGENES = { llenadora, empacadora, paletizadora, envolvedora }
 
@@ -62,6 +62,10 @@ function ImagenMaquina({ maquina, src }) {
           src={IMAGENES[prev.toLowerCase()]}
           alt=""
           aria-hidden="true"
+          width={800}
+          height={800}
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 m-auto h-full w-auto max-w-full object-contain rounded-xl animate-[maquina-exit-left_500ms_ease-in_both]"
         />
       )}
@@ -70,6 +74,10 @@ function ImagenMaquina({ maquina, src }) {
           key={current}
           src={src}
           alt={`${maquina} de la Línea 4`}
+          width={800}
+          height={800}
+          loading="lazy"
+          decoding="async"
           className={`relative mx-auto h-full w-auto max-w-full object-contain rounded-xl ${prev ? 'animate-[maquina-enter-right_500ms_ease-out_both]' : 'animate-[maquina-enter-down_600ms_ease-out_both]'}`}
         />
       ) : (
