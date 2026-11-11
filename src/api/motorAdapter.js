@@ -141,6 +141,257 @@ export function adaptarCatalogo(res) {
   }
 }
 
+// --- Historia clínica ----------------------------------------------------------------------------
+// historia_clinica.json: maquinas[] → sistemas[] → componentes[] (cada componente con serie_mensual[]).
+// Todo valor sale del motor; aquí solo se renombra, se ordena y se suman series ya calculadas.
+
+export const POCOS_DATOS = 'Pocos datos'
+const SIN_DATO = '—'
+
+/** Si el motor marca Datos_suficientes=false, se muestra "Pocos datos" en lugar del número. */
+export function valorMotor(valor, suficiente = true) {
+  if (suficiente === false) return POCOS_DATOS
+  return valor ?? null
+}
+
+/** Índice crudo + jerarquía para los menús. Conserva los estados available / calculando. */
+export function adaptarHistoria(res) {
+  const lista = Array.isArray(res?.maquinas) ? res.maquinas : []
+  const jerarquia = {}
+  const nodos = {}
+  lista.forEach((m) => {
+    const sistemas = Array.isArray(m.sistemas) ? m.sistemas : []
+    const nodoMaquina = { nodo: m, sistemas: {}, componentes: {} }
+    jerarquia[m.Maquina] = sistemas.map((s) => {
+      const comps = Array.isArray(s.componentes) ? s.componentes : []
+      nodoMaquina.sistemas[s.Sistema] = s
+      comps.forEach((c) => { nodoMaquina.componentes[c.Id_componente] = { ...c, Sistema: s.Sistema } })
+      return {
+        id: s.Sistema,
+        nombre: s.Sistema,
+        componentes: comps.map((c) => ({ id: c.Id_componente, nombre: c.Componente })),
+      }
+    })
+    nodos[m.Maquina] = nodoMaquina
+  })
+  return {
+    available: res?.available !== false && res?.status !== 'calculando',
+    calculando: res?.status === 'calculando',
+    message: res?.message || (res?.status === 'calculando' ? 'El motor está calculando la historia clínica. Vuelve en unos minutos.' : ''),
+    datosHasta: res?.generado_con_datos_hasta || null,
+    maquinas: lista.map((m) => m.Maquina),
+    jerarquia,
+    nodos,
+  }
+}
+
+function nodoMaquinaDe(historia, maquina) {
+  return historia?.nodos?.[maquina] ?? null
+}
+
+/** Nodo del alcance elegido: componente > sistema > máquina. */
+function nodoAlcance(historia, maquina, { sistema = null, componente = null } = {}) {
+  const nm = nodoMaquinaDe(historia, maquina)
+  if (!nm) return null
+  if (componente && nm.componentes[componente]) return { nivel: 'componente', nodo: nm.componentes[componente] }
+  if (sistema && nm.sistemas[sistema]) return { nivel: 'sistema', nodo: nm.sistemas[sistema] }
+  return { nivel: 'maquina', nodo: nm.nodo }
+}
+
+/** Componentes (crudos) que caen dentro del alcance: para la serie mensual y el resumen. */
+function componentesAlcance(historia, maquina, { sistema = null, componente = null } = {}) {
+  const nm = nodoMaquinaDe(historia, maquina)
+  if (!nm) return []
+  const todos = Object.values(nm.componentes)
+  if (componente) return todos.filter((c) => c.Id_componente === componente)
+  if (sistema) return todos.filter((c) => c.Sistema === sistema)
+  return todos
+}
+
+function costosDe(n) {
+  return {
+    preventiva: n?.Costo_preventiva ?? null,
+    predictiva: n?.Costo_predictiva ?? null,
+    correctiva: n?.Costo_correctiva ?? n?.Costo_correctivo ?? null,
+  }
+}
+
+/** Componente principal crudo de la máquina (el motor ya lo nombra en Componente_principal). */
+function principalCrudo(historia, maquina) {
+  const nm = nodoMaquinaDe(historia, maquina)
+  if (!nm) return null
+  const nombre = nm.nodo?.Componente_principal
+  return Object.values(nm.componentes).find((c) => c.Componente === nombre) ?? null
+}
+
+export function adaptarIndicadoresHistoria(historia, maquina, filtros = {}) {
+  const alcance = nodoAlcance(historia, maquina, filtros)
+  const n = alcance?.nodo ?? {}
+  const esComponente = alcance?.nivel === 'componente'
+  const suficiente = esComponente ? n.Datos_suficientes !== false : true
+  const principal = esComponente ? n : principalCrudo(historia, maquina)
+  return {
+    nivel: alcance?.nivel ?? 'maquina',
+    fallas: n.Eventos ?? null,
+    minutosParo: n.Minutos_paro ?? null,
+    mttr: valorMotor(n.MTTR_mediana_min, suficiente),
+    mttrMedia: valorMotor(n.MTTR_media_min, suficiente),
+    mtbf: esComponente ? valorMotor(n.MTBF_mediana_dias, suficiente) : null,
+    tendencia: esComponente ? (n.Tendencia ?? null) : (principal?.Tendencia ?? null),
+    formaFalla: esComponente ? (n.Forma_falla ?? null) : (principal?.Forma_falla ?? null),
+    weibullBeta: esComponente ? valorMotor(n.Weibull_beta, suficiente) : null,
+    sintomas: esComponente ? (n.Sintomas ?? null) : null,
+    modoPrincipal: esComponente ? (n.Modo_principal ?? null) : null,
+    tareaVigente: esComponente ? (n.Tarea_vigente ?? null) : null,
+    confianza: esComponente ? (n.Confianza ?? null) : null,
+    componentePrincipal: esComponente ? (n.Componente ?? null) : (n.Componente_principal ?? null),
+    costos: costosDe(n),
+    datosSuficientes: suficiente,
+    disponibilidad: null,
+    cumplimientoPlan: null,
+    promedioLinea: null,
+  }
+}
+
+export function adaptarFichaHistoria(historia, maquina, sufijo = '') {
+  const nm = nodoMaquinaDe(historia, maquina)
+  const m = nm?.nodo ?? {}
+  const principal = principalCrudo(historia, maquina)
+  // Criticidad: orden de las máquinas por Minutos_paro del motor (no se calcula nada nuevo)
+  const ranking = Object.values(historia?.nodos ?? {})
+    .map((x) => ({ m: x.nodo.Maquina, fallas: x.nodo.Eventos ?? 0, minutosParo: x.nodo.Minutos_paro ?? 0 }))
+    .sort((a, b) => b.minutosParo - a.minutosParo)
+  const puesto = ranking.findIndex((r) => r.m === maquina) + 1
+  return {
+    maquina,
+    nombre: `${maquina}${sufijo ? ` ${sufijo}` : ''}`,
+    fallaPredominante: principal?.Forma_falla ?? null,
+    componentePrincipal: m.Componente_principal
+      ? { nombre: m.Componente_principal, paros: principal?.Eventos ?? null }
+      : null,
+    planesPreventivosVigentes: principal?.Tarea_vigente ?? null,
+    ordenesSinEjecutar: null,
+    criticidad: puesto === 1 && (ranking[0]?.minutosParo ?? 0) > 0 ? 'mas_danada' : (puesto || null),
+    rankingFallas: ranking,
+    tendencia: principal?.Tendencia ?? null,
+    sintomas: principal?.Sintomas ?? null,
+    modoPrincipal: principal?.Modo_principal ?? null,
+    confianza: principal?.Confianza ?? null,
+    avisosFalla: m.Avisos_falla ?? null,
+    costos: costosDe(m),
+  }
+}
+
+export function adaptarComponentesHistoria(historia, maquina) {
+  const nm = nodoMaquinaDe(historia, maquina)
+  if (!nm) return []
+  // Orden del motor: sistemas por Minutos_paro y, dentro, componentes por Minutos_paro
+  return Object.values(nm.componentes)
+    .filter((c) => (c.Eventos ?? 0) > 0)
+    .map((c) => ({
+      id: c.Id_componente,
+      sistemaId: c.Sistema,
+      sistemaNombre: c.Sistema,
+      nombre: c.Componente,
+      fallas: c.Eventos ?? 0,
+      mtbf: valorMotor(c.MTBF_mediana_dias, c.Datos_suficientes !== false),
+      ultimoEvento: c.Ultimo_evento ?? null,
+      minutos: c.Minutos_paro ?? 0,
+      nivel: null,
+      confianza: c.Confianza ?? null,
+      tendencia: c.Tendencia ?? null,
+    }))
+    .sort((a, b) => b.minutos - a.minutos)
+}
+
+function etiquetaMes(mes) {
+  const [y, m] = String(mes).split('-').map(Number)
+  if (!y || !m) return String(mes)
+  const s = new Date(y, m - 1, 1).toLocaleDateString('es-CO', { month: 'short', year: '2-digit' })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+/** Une las serie_mensual de los componentes del alcance (suma de lo recibido) y deja los últimos 12 meses. */
+export function adaptarSerieHistoria(historia, maquina, filtros = {}) {
+  const porMes = {}
+  componentesAlcance(historia, maquina, filtros).forEach((c) => {
+    ;(c.serie_mensual || []).forEach((r) => {
+      const k = String(r.Mes)
+      porMes[k] = porMes[k] ?? { paros: 0, minutosParo: 0 }
+      porMes[k].paros += r.Eventos ?? 0
+      porMes[k].minutosParo += r.Minutos ?? 0
+    })
+  })
+  return Object.keys(porMes).sort().slice(-12).map((key) => ({
+    key,
+    mes: etiquetaMes(key),
+    paros: porMes[key].paros,
+    minutosParo: porMes[key].minutosParo,
+    mantenimientos: [],
+  }))
+}
+
+/** Datos del PDF: todo sale de los nodos del motor; sin órdenes ni fechas inventadas. */
+export function adaptarResumenHistoria(historia, maquina) {
+  const nm = nodoMaquinaDe(historia, maquina)
+  const m = nm?.nodo ?? {}
+  const comps = adaptarComponentesHistoria(historia, maquina)
+  const crudos = nm ? nm.componentes : {}
+  const principal = principalCrudo(historia, maquina)
+  return {
+    indicadores: {
+      paros: m.Eventos ?? 0,
+      minutosParo: m.Minutos_paro ?? 0,
+      mttr: m.MTTR_mediana_min ?? SIN_DATO,
+      // El PDF rotula MTBF en horas: se usa MTBF_mediana_h del componente principal tal como lo entrega el motor
+      mtbf: principal ? (valorMotor(principal.MTBF_mediana_h, principal.Datos_suficientes !== false) ?? SIN_DATO) : SIN_DATO,
+    },
+    formaFalla: principal?.Forma_falla ?? SIN_DATO,
+    avisosFalla: m.Avisos_falla ?? 0,
+    topFallas: comps.slice(0, 5).map((c) => ({ componenteModo: c.nombre, veces: c.fallas, minutos: c.minutos })),
+    tareasPendientes: comps.slice(0, 3)
+      .filter((c) => crudos[c.id]?.Tarea_vigente)
+      .map((c) => ({ tarea: crudos[c.id].Tarea_vigente, componente: c.nombre, ordenSap: SIN_DATO, fechaProgramada: SIN_DATO })),
+  }
+}
+
+// Eventos (tabla historia_eventos del back)
+export const TIPO_EVENTO_MOTOR = {
+  Todo: 'Todo',
+  Fallas: 'FALLA',
+  Avisos: 'AVISO',
+  'Órdenes': 'CORRECTIVO',
+  Preventivos: 'PREVENTIVO',
+}
+
+export function adaptarEventosHistoria(res, porPagina) {
+  const lista = Array.isArray(res?.eventos) ? res.eventos : []
+  const total = res?.total ?? 0
+  const pagina = res?.pagina ?? 1
+  const tam = res?.por_pagina ?? porPagina
+  return {
+    items: lista.map((e) => ({
+      id: e.id,
+      fecha: e.fecha,
+      tipo: e.tipo,
+      orden: e.orden ?? null,
+      sistemaId: e.sistema ?? null,
+      sistemaNombre: e.sistema ?? null,
+      componenteId: e.id_componente ?? null,
+      componenteNombre: e.componente ?? null,
+      titulo: e.titulo || '',
+      detalle: e.detalle || '',
+      minutosParo: e.minutos_paro ?? null,
+    })),
+    total,
+    pagina,
+    porPagina: tam,
+    hasMore: pagina * tam < total,
+    available: res?.available !== false,
+    message: res?.message || '',
+  }
+}
+
 // --- Plan semanal --------------------------------------------------------------------------------
 
 const TODA_LA_LINEA = 'Toda la línea'

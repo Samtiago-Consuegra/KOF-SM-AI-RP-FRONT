@@ -13,10 +13,30 @@ const FALLA_TIPOS = {
   'En racha': { Icon: Flame, chip: 'bg-primary-100 text-primary-800', tooltip: 'Varias fallas seguidas en poco tiempo.' },
 }
 
-function Fila({ label, children }) {
+// El motor rotula la forma como "Desgaste (…)", "Aleatoria (…)", "En racha (…)" o "Pocos datos"
+function tipoFalla(forma) {
+  const f = String(forma || '')
+  if (f.startsWith('Desgaste') || f.startsWith('Por desgaste')) return FALLA_TIPOS['Por desgaste']
+  if (f.startsWith('En racha')) return FALLA_TIPOS['En racha']
+  return FALLA_TIPOS.Aleatoria
+}
+
+const TENDENCIA_CLS = {
+  'Empeora': 'bg-[#F40000]/10 text-[#F40000]',
+  'Mejora': 'bg-[#0D9488]/10 text-[#0D9488]',
+}
+
+const fmtCOP = (v) => (typeof v === 'number'
+  ? v.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+  : null)
+
+function Fila({ label, children, index = 0, nueva = false }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-3">
-      <span className="text-sm text-ink-500">{label}</span>
+    <div
+      className={`flex items-center justify-between gap-3 py-3 ${nueva ? 'animate-[fade-swap-in_220ms_cubic-bezier(0.22,1,0.36,1)_both]' : ''}`}
+      style={nueva ? { animationDelay: `${Math.min(index, 8) * 35}ms` } : undefined}
+    >
+      <span className="shrink-0 text-sm text-ink-500">{label}</span>
       {children}
     </div>
   )
@@ -93,13 +113,34 @@ function ImagenMaquina({ maquina, src }) {
 export default function FichaEquipo({ ficha, maquina, loading }) {
   if (loading || !ficha) return <FichaSkeleton />
 
-  const tipo = FALLA_TIPOS[ficha.fallaPredominante] ?? FALLA_TIPOS.Aleatoria
+  const tipo = tipoFalla(ficha.fallaPredominante)
   const { Icon } = tipo
   const keyImagen = maquina.toLowerCase()
+  const totalMaquinas = ficha.rankingFallas?.length || 4
 
   const criticidad = typeof ficha.criticidad === 'number'
-    ? { texto: `Puesto ${ficha.criticidad} de 4 en fallas`, clase: 'bg-ink-100 text-ink-700' }
-    : { texto: 'Máquina que más se daña de la línea', clase: 'bg-primary-50 text-primary-600' }
+    ? { texto: `Puesto ${ficha.criticidad} de ${totalMaquinas} en minutos de paro`, clase: 'bg-ink-100 text-ink-700' }
+    : ficha.criticidad === 'mas_danada'
+      ? { texto: 'Máquina con más minutos de paro de la línea', clase: 'bg-primary-50 text-primary-600' }
+      : null
+
+  // Filas nuevas que entrega el motor: solo se pintan cuando hay valor
+  const costoCorrectivo = fmtCOP(ficha.costos?.correctiva)
+  const extras = [
+    ficha.tendencia && {
+      k: 'tendencia',
+      label: 'Tendencia (6 meses)',
+      node: (
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${TENDENCIA_CLS[ficha.tendencia] ?? 'border border-neutral-200 bg-[#F8F9FA] text-[#111827]/75'}`}>
+          {ficha.tendencia}
+        </span>
+      ),
+    },
+    ficha.modoPrincipal && { k: 'modo', label: 'Modo principal', node: <span className="text-sm font-semibold text-ink-900 text-right">{ficha.modoPrincipal}</span> },
+    ficha.sintomas && { k: 'sintomas', label: 'Síntomas', node: <span className="text-sm text-ink-900 text-right line-clamp-2">{ficha.sintomas}</span> },
+    ficha.confianza && { k: 'confianza', label: 'Confianza', node: <span className="text-sm font-semibold text-ink-900">{ficha.confianza}</span> },
+    costoCorrectivo && { k: 'costo', label: 'Costo correctivo', node: <span className="text-sm font-semibold text-ink-900 tabular-nums">{costoCorrectivo}</span> },
+  ].filter(Boolean)
 
   return (
     <div className="h-full flex flex-col rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
@@ -111,25 +152,34 @@ export default function FichaEquipo({ ficha, maquina, loading }) {
               <span className={`grid size-7 place-items-center rounded-full ${tipo.chip}`} aria-hidden="true">
                 <Icon className="size-3.5" aria-hidden="true" />
               </span>
-              <span className="text-sm font-semibold text-ink-900">{ficha.fallaPredominante}</span>
+              <span className="text-sm font-semibold text-ink-900 text-right">{ficha.fallaPredominante ?? 'Pocos datos'}</span>
             </span>
           </Fila>
           <Fila label="Componente principal">
             <span className="text-sm font-semibold text-ink-900 text-right">
-              {ficha.componentePrincipal ? `${ficha.componentePrincipal.nombre} (${ficha.componentePrincipal.paros} paros)` : 'Sin datos en el periodo'}
+              {ficha.componentePrincipal
+                ? `${ficha.componentePrincipal.nombre}${ficha.componentePrincipal.paros !== null && ficha.componentePrincipal.paros !== undefined ? ` (${ficha.componentePrincipal.paros} paros)` : ''}`
+                : 'Sin datos del motor'}
             </span>
           </Fila>
-          <Fila label="Planes preventivos vigentes">
-            <span className="text-sm font-semibold text-ink-900">{ficha.planesPreventivosVigentes}</span>
+          <Fila label="Tarea preventiva vigente">
+            <span className="text-sm font-semibold text-ink-900 text-right line-clamp-2">{ficha.planesPreventivosVigentes ?? 'Sin tarea identificada'}</span>
           </Fila>
-          <Fila label="Órdenes sin ejecutar">
-            <span className={`text-sm font-semibold ${ficha.ordenesSinEjecutar > 0 ? 'text-primary-600' : 'text-ink-900'}`}>
-              {ficha.ordenesSinEjecutar}
-            </span>
-          </Fila>
-          <Fila label="Criticidad">
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${criticidad.clase}`}>{criticidad.texto}</span>
-          </Fila>
+          {ficha.ordenesSinEjecutar !== null && ficha.ordenesSinEjecutar !== undefined && (
+            <Fila label="Órdenes sin ejecutar">
+              <span className={`text-sm font-semibold ${ficha.ordenesSinEjecutar > 0 ? 'text-primary-600' : 'text-ink-900'}`}>
+                {ficha.ordenesSinEjecutar}
+              </span>
+            </Fila>
+          )}
+          {criticidad && (
+            <Fila label="Criticidad">
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${criticidad.clase}`}>{criticidad.texto}</span>
+            </Fila>
+          )}
+          {extras.map((e, i) => (
+            <Fila key={e.k} label={e.label} index={i} nueva>{e.node}</Fila>
+          ))}
         </div>
       </div>
 

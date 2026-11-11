@@ -1,10 +1,24 @@
 import { Link } from 'react-router-dom'
+import { POCOS_DATOS } from '../../api/motorAdapter.js'
 
 const NIVEL_BADGE = {
   'Crítico': 'bg-primary-50 text-primary-600',
   'Alto': 'bg-primary-100 text-primary-800',
   'Medio': 'bg-ink-100 text-ink-700',
   'Sin nivel': 'bg-neutral-100 text-ink-500',
+}
+
+// Confianza del motor (según número de eventos): Alta / Media / Baja
+const CONFIANZA_BADGE = {
+  'Alta': 'bg-[#0D9488]/10 text-[#0D9488]',
+  'Media': 'bg-ink-100 text-ink-700',
+  'Baja': 'border border-neutral-200 bg-[#F8F9FA] text-[#111827]/70',
+}
+
+function textoMtbf(mtbf) {
+  if (mtbf === POCOS_DATOS) return null
+  if (typeof mtbf === 'number') return `MTBF ${mtbf.toLocaleString('es-CO', { maximumFractionDigits: 1 })} días`
+  return 'Sin MTBF del motor'
 }
 
 function Skeleton() {
@@ -37,14 +51,28 @@ export default function ComponentesMaquina({ componentes, loading, maquina, peri
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-ink-900 truncate">{c.nombre}</span>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${NIVEL_BADGE[c.nivel] ?? NIVEL_BADGE['Sin nivel']}`}>
-                    {c.nivel}
-                  </span>
+                  {c.nivel ? (
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${NIVEL_BADGE[c.nivel] ?? NIVEL_BADGE['Sin nivel']}`}>
+                      {c.nivel}
+                    </span>
+                  ) : c.confianza && (
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${CONFIANZA_BADGE[c.confianza] ?? CONFIANZA_BADGE.Baja} animate-[fade-swap-in_220ms_cubic-bezier(0.22,1,0.36,1)_both]`}
+                      style={{ animationDelay: `${Math.min(i, 6) * 40 + 60}ms` }}
+                      title="Confianza del motor según el número de eventos"
+                    >
+                      Confianza {c.confianza.toLowerCase()}
+                    </span>
+                  )}
                 </div>
-                <div className="mt-0.5 text-xs text-ink-500">
-                  {c.fallas} fallas
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-ink-500">
+                  {c.fallas} eventos
                   {' · '}
-                  {c.mtbf ? `MTBF ${c.mtbf} h` : 'Datos insuficientes para MTBF'}
+                  {c.mtbf === POCOS_DATOS ? (
+                    <span className="rounded-full border border-neutral-200 bg-[#F8F9FA] px-1.5 py-px font-medium text-[#111827]/70">
+                      MTBF: {POCOS_DATOS}
+                    </span>
+                  ) : textoMtbf(c.mtbf)}
                   {c.ultimoEvento && <> · Último evento {new Date(`${c.ultimoEvento}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })}</>}
                 </div>
               </div>

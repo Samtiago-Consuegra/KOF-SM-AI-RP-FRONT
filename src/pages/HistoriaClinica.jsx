@@ -12,6 +12,7 @@ import LineaTiempo from '../components/historia/LineaTiempo.jsx'
 import ComponentesMaquina from '../components/historia/ComponentesMaquina.jsx'
 import ExportarHistoriaModal from '../components/historia/ExportarHistoriaModal.jsx'
 import ComponenteSelect from '../components/historia/ComponenteSelect.jsx'
+import MotorVacio from '../components/ui/MotorVacio.jsx'
 import {
   MAQUINAS,
   SUFIJO_LINEA,
@@ -25,9 +26,9 @@ import {
 import { resolveTimeRange } from '../utils/period.js'
 import { toISODate } from '../utils/format.js'
 
-// Últimos 12 meses como límites del filtro de periodo (mock local, sin backend).
-// Cuando exista API se reemplaza por los periodos reales.
-function boundsMock() {
+// Últimos 12 meses como límites del filtro de periodo. Los indicadores del motor
+// son de todo el histórico; el periodo filtra la línea de tiempo (en el back).
+function boundsPeriodo() {
   const hoy = new Date()
   const months = []
   for (let i = 11; i >= 0; i--) {
@@ -37,9 +38,9 @@ function boundsMock() {
   return { months, min: `${months[0]}-01`, max: toISODate(hoy) }
 }
 
-// La página abre sobre los últimos 12 meses (todo el histórico simulado).
+// La página abre sobre los últimos 12 meses.
 function rangoPorDefecto() {
-  const { months } = boundsMock()
+  const { months } = boundsPeriodo()
   return {
     period: 'meses',
     month: months[months.length - 1],
@@ -76,9 +77,11 @@ function rangoAParams(range) {
 
 export default function HistoriaClinica() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const bounds = useMemo(() => boundsMock(), [])
+  const bounds = useMemo(() => boundsPeriodo(), [])
   const [jerarquia, setJerarquia] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
+  // Estado del motor: {available:false} o "calculando" muestran MotorVacio en lugar de los datos
+  const [motor, setMotor] = useState({ available: true, message: '' })
 
   const maquina = MAQUINAS.includes(searchParams.get('maquina')) ? searchParams.get('maquina') : 'Llenadora'
   const sistemaId = searchParams.get('sistema') ?? ''
@@ -98,7 +101,11 @@ export default function HistoriaClinica() {
   useEffect(() => {
     let alive = true
     setJerarquia([])
-    getJerarquia(maquina).then((h) => { if (alive) setJerarquia(h) })
+    getJerarquia(maquina).then((h) => {
+      if (!alive) return
+      setJerarquia(h)
+      setMotor({ available: h.available !== false, message: h.message || '' })
+    })
     return () => { alive = false }
   }, [maquina])
 
@@ -257,6 +264,15 @@ export default function HistoriaClinica() {
         </div>
       </Card>
 
+      {!motor.available ? (
+        <div className="animate-[fade-swap-in_280ms_cubic-bezier(0.22,1,0.36,1)_both]">
+          <MotorVacio
+            message={motor.message || 'Aún no hay resultados del motor. Sube los archivos de SAP en Mantenimiento.'}
+            className="min-h-[360px]"
+          />
+        </div>
+      ) : (
+      <>
       {/* Fila 1: Ficha (1/3) + Indicadores (2/3), misma altura */}
       <div className="grid gap-6 lg:grid-cols-3 items-stretch">
         <FichaEquipo ficha={ficha} maquina={maquina} loading={cargandoBase} />
@@ -290,6 +306,8 @@ export default function HistoriaClinica() {
           />
         </div>
       </div>
+      </>
+      )}
 
       {/* Modal de exportación */}
       <ExportarHistoriaModal

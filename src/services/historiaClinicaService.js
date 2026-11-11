@@ -1,124 +1,105 @@
 // Servicio de Historia Clínica.
-// Toda la UI accede a los datos simulados SOLO desde aquí: cuando exista backend
-// (FastAPI/Supabase + kof_engine) se reemplaza la capa de mock sin tocar componentes.
-import { MAQUINAS, PLANES, SUFIJO_LINEA, getEventos, getIndicadores, getParosPorMes, getComponentesResumen, JERARQUIA } from '../data/mock/historiaClinica'
+// Toda la UI accede a los datos SOLO desde aquí. Los valores salen del motor
+// (/motor/historia-clinica y /motor/historia/eventos); la traducción de campos vive en
+// src/api/motorAdapter.js. El front no calcula indicadores.
+import { getHistoriaClinica, getEventosHistoria } from '../api/motor'
+import {
+  adaptarHistoria,
+  adaptarFichaHistoria,
+  adaptarIndicadoresHistoria,
+  adaptarComponentesHistoria,
+  adaptarSerieHistoria,
+  adaptarResumenHistoria,
+  adaptarEventosHistoria,
+  TIPO_EVENTO_MOTOR,
+} from '../api/motorAdapter'
 
-const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms))
+// Las 4 máquinas críticas de la Línea 4 (mismo orden que MAQ4 del motor)
+export const MAQUINAS = ['Llenadora', 'Empacadora', 'Paletizadora', 'Envolvedora']
+export const SUFIJO_LINEA = 'L4'
 
-export { MAQUINAS, SUFIJO_LINEA }
+// Última historia cargada: jerarquiaDe() es síncrona y la lee de aquí.
+let ultimaHistoria = null
+let enCurso = null
+
+function cargarHistoria() {
+  if (ultimaHistoria) return Promise.resolve(ultimaHistoria)
+  if (enCurso) return enCurso
+  enCurso = getHistoriaClinica()
+    .then((res) => {
+      const h = adaptarHistoria(res)
+      // Solo se guarda en memoria cuando hay datos; "calculando" o "sin datos" se reintentan
+      if (h.available) ultimaHistoria = h
+      return h
+    })
+    .catch((err) => adaptarHistoria({ available: false, message: err?.message || 'No se pudo cargar la historia clínica.' }))
+    .finally(() => { enCurso = null })
+  return enCurso
+}
+
+function conEstado(valor, historia) {
+  if (valor && typeof valor === 'object') {
+    valor.available = historia.available
+    valor.calculando = historia.calculando
+    valor.message = historia.message
+  }
+  return valor
+}
 
 // Jerarquía máquina → sistemas → componentes para los filtros en cascada
 export async function getJerarquia(maquina) {
-  await delay(60)
-  return (JERARQUIA[maquina] ?? []).map((sis) => ({
+  const h = await cargarHistoria()
+  const lista = (h.jerarquia[maquina] ?? []).map((sis) => ({
     id: sis.id,
     nombre: sis.nombre,
     componentes: sis.componentes.map((c) => ({ id: c.id, nombre: c.nombre })),
   }))
+  return conEstado(lista, h)
 }
 
 export function jerarquiaDe(maquina) {
-  return (JERARQUIA[maquina] ?? []).map((sis) => ({ ...sis, componentes: [...sis.componentes] }))
+  return (ultimaHistoria?.jerarquia[maquina] ?? []).map((sis) => ({ ...sis, componentes: [...sis.componentes] }))
 }
 
-export async function getFicha(maquina, filtros = {}) {
-  await delay()
-  const eventos = getEventos(maquina, filtros)
-  const planes = PLANES[maquina]
-  // Componente principal: el que más paros (fallas) causa en el periodo
-  const porComponente = {}
-  eventos.filter((e) => e.tipo === 'FALLA').forEach((e) => {
-    porComponente[e.componenteNombre] = (porComponente[e.componenteNombre] ?? 0) + 1
-  })
-  const top = Object.entries(porComponente).sort((a, b) => b[1] - a[1])[0]
-  // Criticidad: puesto según el número de fallas frente a las 4 máquinas críticas
-  const ranking = MAQUINAS.map((m) => ({ m, fallas: getEventos(m, {...filtros}).filter((e) => e.tipo === 'FALLA').length }))
-    .sort((a, b) => b.fallas - a.fallas)
-  const puesto = ranking.findIndex((r) => r.m === maquina) + 1
-  return {
-    maquina,
-    nombre: `${maquina} ${SUFIJO_LINEA}`,
-    fallaPredominante: planes.fallaPredominante,
-    componentePrincipal: top ? { nombre: top[0], paros: top[1] } : null,
-    planesPreventivosVigentes: planes.planesPreventivosVigentes,
-    ordenesSinEjecutar: planes.ordenesSinEjecutar,
-    criticidad: puesto === 1 && ranking[0].fallas > 0 ? 'mas_danada' : puesto,
-    rankingFallas: ranking,
-  }
+export async function getFicha(maquina) {
+  const h = await cargarHistoria()
+  return conEstado(adaptarFichaHistoria(h, maquina, SUFIJO_LINEA), h)
 }
 
 export async function getIndicadoresGeneral(maquina, filtros = {}) {
-  await delay()
-  const base = getIndicadores(maquina, filtros)
-  // Promedio de la línea: se calcula sobre las 4 máquinas completas, sin alcance de sistema
-  const conFiltrosLinea = { ...filtros, sistema: null, componente: null }
-  const fallasLinea = MAQUINAS.map((m) => getIndicadores(m, conFiltrosLinea).fallas)
-  const promedioFallas = Math.round(fallasLinea.reduce((a, b) => a + b, 0) / MAQUINAS.length)
-  return { ...base, promedioLinea: promedioFallas }
+  const h = await cargarHistoria()
+  return conEstado(adaptarIndicadoresHistoria(h, maquina, filtros), h)
 }
 
-// La gráfica siempre muestra los últimos 12 meses (independiente del periodo
-// seleccionado en la página); Sistema y Componente sí la filtran.
+// La gráfica muestra los últimos 12 meses que trae el motor; Sistema y Componente la filtran.
 export async function getParosPorMesSector(maquina, { sistema = null, componente = null } = {}) {
-  await delay()
-  return getParosPorMes(maquina, { sistema, componente })
+  const h = await cargarHistoria()
+  return conEstado(adaptarSerieHistoria(h, maquina, { sistema, componente }), h)
 }
 
 export async function getEventosPaginados({ maquina, tipo = 'Todo', desde, hasta, pagina = 1, porPagina = 6 }) {
-  await delay()
-  const todos = getEventos(maquina, { tipo, desde, hasta })
-  const total = todos.length
-  const start = (pagina - 1) * porPagina
-  const items = todos.slice(start, start + porPagina)
-  return { items, total, pagina, porPagina, hasMore: start + porPagina < total }
-}
-
-export async function getComponentesOrdenados(maquina, filtros = {}) {
-  await delay()
-  const filas = getComponentesResumen(maquina, filtros)
-  const nivelOrden = { 'Crítico': 0, 'Alto': 1, 'Medio': 2, 'Sin nivel': 3 }
-  return filas.sort((a, b) => {
-    if (nivelOrden[a.nivel] !== nivelOrden[b.nivel]) return nivelOrden[a.nivel] - nivelOrden[b.nivel]
-    return b.fallas - a.fallas
+  const res = await getEventosHistoria({
+    maquina,
+    tipo: TIPO_EVENTO_MOTOR[tipo] ?? 'Todo',
+    desde,
+    hasta,
+    pagina,
+    por_pagina: porPagina,
   })
+  return adaptarEventosHistoria(res, porPagina)
 }
 
-// Resumen para exportar el PDF: máquina COMPLETA en el periodo (sin alcance de
-// sistema/componente). El alcance solo se documenta como línea informativa.
+export async function getComponentesOrdenados(maquina) {
+  const h = await cargarHistoria()
+  return conEstado(adaptarComponentesHistoria(h, maquina), h)
+}
+
+// Resumen para exportar el PDF: máquina COMPLETA según el motor. El alcance de
+// sistema/componente solo se documenta como línea informativa.
 export async function getResumenExportacion({ maquina, desde, hasta, sistema, componente }) {
-  await delay()
-  const filtrosPeriodo = { desde, hasta }
-  const eventos = getEventos(maquina, filtrosPeriodo)
-  const indicadores = getIndicadores(maquina, { ...filtrosPeriodo })
+  const h = await cargarHistoria()
   const jerarquia = jerarquiaDe(maquina)
-
-  const fallas = eventos.filter((e) => e.tipo === 'FALLA')
-  const avisosFalla = eventos.filter((e) => e.tipo === 'AVISO').length
-
-  // Fallas que más se repiten: agrupadas por componente/modo
-  const porComponente = {}
-  fallas.forEach((e) => {
-    const k = e.componenteNombre
-    porComponente[k] = porComponente[k] ?? { componenteModo: k, veces: 0, minutos: 0 }
-    porComponente[k].veces += 1
-    porComponente[k].minutos += e.minutosParo || 0
-  })
-  const topFallas = Object.values(porComponente).sort((a, b) => b.veces - a.veces).slice(0, 5)
-
-  // Tareas pendientes: SOLO preventivas (representación mock: próximas a programar)
-  const comps = await getComponentesOrdenados(maquina, filtrosPeriodo)
-  const tareasPendientes = comps.slice(0, 3).map((c, i) => ({
-    tarea: `Preventivo programado · ${c.nombre}`,
-    componente: c.nombre,
-    ordenSap: ZFI_ORDEN(i, maquina),
-    fechaProgramada: fechaFutura(desde, hasta, i + 1),
-  }))
-
-  const dias = Math.max(Math.round((new Date(hasta) - new Date(desde)) / 864e5) + 1, 1)
-  const horas = dias * 24
-  const mtbf = fallas.length ? Math.round(horas / fallas.length) : 0
-  const minutosParo = fallas.reduce((s, e) => s + (e.minutosParo || 0), 0)
-  const mttr = fallas.length ? Math.round(minutosParo / fallas.length) : 0
+  const resumen = adaptarResumenHistoria(h, maquina)
 
   const alcanceSistemas = sistema
     ? jerarquia.find((s) => s.id === sistema)?.nombre ?? null
@@ -135,27 +116,25 @@ export async function getResumenExportacion({ maquina, desde, hasta, sistema, co
       : null,
     fechaExportacion: new Date(),
     periodo: { desde, hasta },
-    indicadores: { paros: fallas.length, minutosParo, mttr, mtbf },
-    formaFalla: PLANES[maquina].fallaPredominante,
-    explicacionFalla: explicacionFalla(PLANES[maquina].fallaPredominante),
-    avisosFalla,
-    topFallas,
-    tareasPendientes,
+    datosHasta: h.datosHasta,
+    indicadores: resumen.indicadores,
+    formaFalla: resumen.formaFalla,
+    explicacionFalla: explicacionFalla(resumen.formaFalla),
+    avisosFalla: resumen.avisosFalla,
+    topFallas: resumen.topFallas,
+    tareasPendientes: resumen.tareasPendientes,
   }
 }
 
-const ZFI_ORDEN = (i, maquina) => `ZFI${MAQUINAS.indexOf(maquina) * 10 + 60 + i}`
-const fechaFutura = (desde, hasta, dias) => {
-  const d = new Date(hasta)
-  d.setDate(d.getDate() + dias * 7)
-  return d.toISOString().slice(0, 10)
-}
-
+// Etiquetas de Forma_falla del motor (fase 14): "Desgaste (…)", "Aleatoria (…)", "En racha (…)"
 const EXPLICACIONES = {
-  'Por desgaste': 'Las fallas aumentan con el uso (β de Weibull > 1).',
-  'Aleatoria': 'Las fallas ocurren sin patrón con el tiempo (β ≈ 1).',
-  'En racha': 'Varias fallas seguidas en poco tiempo.',
+  'Desgaste': 'Las fallas aumentan con el uso (β de Weibull > 1,2).',
+  'Por desgaste': 'Las fallas aumentan con el uso (β de Weibull > 1,2).',
+  'Aleatoria': 'Las fallas ocurren sin patrón con el tiempo (β entre 0,8 y 1,2).',
+  'En racha': 'Después de una falla es probable otra pronto (β < 0,8).',
 }
 export function explicacionFalla(forma) {
-  return EXPLICACIONES[forma] ?? ''
+  if (!forma) return ''
+  const clave = Object.keys(EXPLICACIONES).find((k) => String(forma).startsWith(k))
+  return clave ? EXPLICACIONES[clave] : ''
 }
