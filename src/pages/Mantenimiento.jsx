@@ -1,5 +1,9 @@
-﻿import { useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import PageHeader from '../components/ui/PageHeader.jsx'
+import RecalculandoBadge from '../components/ui/RecalculandoBadge.jsx'
+import MotorVacio from '../components/ui/MotorVacio.jsx'
+import useMotorEstado from '../hooks/useMotorEstado.js'
+import { semanaISO } from '../api/motorAdapter.js'
 import { Upload, ChevronLeft, ChevronRight, CalendarPlus, FileDown, Bot, X, Loader2, Check } from 'lucide-react'
 import { useMantenimientoWeek, weekLegend } from '../hooks/useMantenimientoWeek.js'
 import { getAlertasSemana, getArchivosSemana, getParadasSemana, getPlanSugerido, getTareasSugeridas } from '../services/mantenimientoService.js'
@@ -56,11 +60,25 @@ export default function Mantenimiento() {
   const [exportSemanaOk, setExportSemanaOk] = useState(false)
   const exportOkTimer = useRef(null)
 
+  const semana = semanaISO(week?.start)
+
+  const cargarAlertas = useCallback(() => getAlertasSemana(semana).then(setAlertas).catch((e) => setToast({ message: e?.message || 'No se pudieron cargar las alertas', variant: 'error' })), [semana])
+  const cargarArchivos = useCallback(() => getArchivosSemana().then(setArchivos).catch((e) => setToast({ message: e?.message || 'No se pudo consultar el estado de los archivos', variant: 'error' })), [])
+  const recargarMotor = useCallback(() => Promise.all([cargarAlertas(), cargarArchivos()]), [cargarAlertas, cargarArchivos])
+  const { calculando, error: errorMotor, marcarCalculando } = useMotorEstado(recargarMotor)
+  useEffect(() => { if (alertas.calculando) marcarCalculando() }, [alertas, marcarCalculando])
+  useEffect(() => { if (errorMotor) setToast({ message: errorMotor, variant: 'error' }) }, [errorMotor])
+
   useEffect(() => { setLegend(weekLegend(week)) }, [week, tick])
-  useEffect(() => { getAlertasSemana().then(setAlertas); getArchivosSemana().then(setArchivos); getPlanSugerido().then(setPlan); getTareasSugeridas().then(setTareas) }, [])
+  useEffect(() => { cargarArchivos(); getPlanSugerido().then(setPlan); getTareasSugeridas().then(setTareas) }, [cargarArchivos])
+  useEffect(() => { cargarAlertas() }, [cargarAlertas])
   useEffect(() => { if (week?.start) getParadasSemana({ startISO: week.start }).then(setParadas) }, [week])
 
-  const onSubido = async () => { setArchivos(await getArchivosSemana()); setToast({ message: 'Archivo cargado' }) }
+  const motorSinDatos = alertas.available === false || archivos.available === false
+  const mensajeMotor = alertas.message || archivos.message
+  const recalculando = calculando || alertas.calculando === true
+
+  const onSubido = async () => { marcarCalculando(); await cargarArchivos() }
   const onParadaCreada = async () => { if (week?.start) setParadas(await getParadasSemana({ startISO: week.start })); setToast({ message: 'Parada programada' }) }
   const onParadaUpdated = async () => { if (week?.start) setParadas(await getParadasSemana({ startISO: week.start })); setToast({ message: 'Parada actualizada' }) }
   const onParadaDeleted = async () => { if (week?.start) setParadas(await getParadasSemana({ startISO: week.start })); setToast({ message: 'Parada eliminada' }) }
@@ -119,20 +137,29 @@ export default function Mantenimiento() {
         .m-anim > *:nth-child(5){animation-delay:240ms}
         .export-icon { transition: opacity 200ms ease, transform 200ms ease; }
         .btn-pop { animation: btn-pop 280ms ease-out; }
-        @media (prefers-reduced-motion: reduce) { .m-anim > *, .toast-anim, .fab-pulse, .btn-pop { animation: none !important; } .export-icon { transition: none !important; } }
+        @keyframes m-badge-in { from { opacity: 0; transform: translateY(-4px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .m-badge { animation: m-badge-in 220ms cubic-bezier(0.22,1,0.36,1) both; }
+        .m-vacio { animation: fade-up 350ms cubic-bezier(0.22,1,0.36,1) both; }
+        @media (prefers-reduced-motion: reduce) { .m-anim > *, .toast-anim, .fab-pulse, .btn-pop, .m-badge, .m-vacio { animation: none !important; } .export-icon { transition: none !important; } }
       `}</style>
 
       <PageHeader title="Mantenimiento" subtitle={legend}>
+        {recalculando && <span className="m-badge inline-flex" aria-live="polite"><RecalculandoBadge /></span>}
         <button onClick={() => setSubirOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl bg-ink-900 px-4 text-sm font-medium text-white hover:bg-primary-500 active:scale-[0.97] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400">
           <Upload className="size-4" /> Subir archivo
         </button>
       </PageHeader>
 
+      {motorSinDatos ? (
+        <div className="m-vacio">
+          <MotorVacio message={mensajeMotor} actionLabel="Subir archivos" onAction={() => setSubirOpen(true)} />
+        </div>
+      ) : (
       <div className="m-anim space-y-6">
         <AlertasCarousel alertas={alertas} />
 
         <div className="grid gap-6 xl:grid-cols-[1fr_320px] lg:grid-cols-[1fr_280px] items-stretch">
-          <div>
+          <div id="calendario" className="scroll-mt-24">
             <div className="bg-white rounded-2xl border border-neutral-200 h-full">
               <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-neutral-200">
                 <div className="flex items-center gap-2">
@@ -164,8 +191,11 @@ export default function Mantenimiento() {
           </div>
         </div>
 
-        <TablaSugerencias plan={plan} tareas={tareas} paradas={paradas} onRefresh={refreshAll} onToast={setToast} />
+        <div id="plan" className="scroll-mt-24">
+          <TablaSugerencias plan={plan} tareas={tareas} paradas={paradas} onRefresh={refreshAll} onToast={setToast} />
+        </div>
       </div>
+      )}
 
       <button aria-label="Abrir asistente de mantenimiento" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)} className="fab-pulse fixed bottom-6 right-6 z-40 h-12 w-12 rounded-full bg-primary-500 text-white grid place-items-center shadow-lg hover:bg-primary-600 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400" style={{ animation: 'fab-in 350ms ease-out both, pulse-soft 2400ms ease-in-out infinite' }}>
         <Bot className="size-5" />

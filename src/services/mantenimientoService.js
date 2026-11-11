@@ -1,5 +1,7 @@
-﻿import { ALERTAS_MOCK, ARCHIVOS_SEMANA_MOCK, buildParadasSemana, PLAN_SUGERIDO_MOCK, TAREAS_SUGERIDAS_MOCK } from '../data/mock/mantenimiento.js'
+﻿import { buildParadasSemana, PLAN_SUGERIDO_MOCK, TAREAS_SUGERIDAS_MOCK } from '../data/mock/mantenimiento.js'
 import { maquinasDeParada } from '../utils/paradas.js'
+import { getAlertas, getArchivosMotor, subirArchivoMotor } from '../api/motor.js'
+import { adaptarAlertas, adaptarArchivos, adaptarSubida } from '../api/motorAdapter.js'
 
 function normalizarParada(datos = {}) {
   const maquinas = maquinasDeParada(datos)
@@ -14,17 +16,10 @@ function normalizarParada(datos = {}) {
 let paradas = []
 let planSugerido = PLAN_SUGERIDO_MOCK.map((p) => ({ ...p }))
 let tareasSugeridas = TAREAS_SUGERIDAS_MOCK.map((t) => ({ ...t }))
-let archivos = ARCHIVOS_SEMANA_MOCK.map((f) => ({ ...f }))
-
-export async function getAlertasSemana() { await new Promise((r) => setTimeout(r, 150)); return ALERTAS_MOCK }
-export async function getArchivosSemana() { await new Promise((r) => setTimeout(r, 100)); return archivos }
-export async function subirArchivo({ tipo, file }) {
-  await new Promise((r) => setTimeout(r, 500))
-  const entry = { id: 'f-' + Date.now(), tipo, icon: tipo === 'Avisos de daño' ? 'AlertTriangle' : tipo === 'Órdenes de trabajo' ? 'ClipboardList' : 'CalendarCheck', nombre: file?.name || 'archivo.xlsx', estado: 'actual', actualizado: new Date().toISOString() }
-  archivos = archivos.filter((f) => f.tipo !== tipo)
-  archivos.unshift(entry)
-  return { ok: true, archivo: entry }
-}
+export async function getAlertasSemana(semana) { return adaptarAlertas(await getAlertas(semana)) }
+export async function getArchivosSemana() { return adaptarArchivos(await getArchivosMotor()) }
+/** tipo: clave del motor (avisos, ordenes, plan, consolidado, acr, acr_revisado). */
+export async function subirArchivo({ tipo, file }) { return adaptarSubida(await subirArchivoMotor(tipo, file)) }
 export async function getParadasSemana({ startISO }) {
   await new Promise((r) => setTimeout(r, 150))
   if (!paradas.length && startISO) paradas = buildParadasSemana({ startISO })
