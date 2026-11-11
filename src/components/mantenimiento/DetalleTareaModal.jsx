@@ -4,7 +4,6 @@ import { X, Pencil, Send, AlertTriangle, Factory, Wrench, CalendarRange, Info, C
 import { enviarTareaAParada } from '../../services/mantenimientoService.js'
 import ProgramarParadaModal from './ProgramarParadaModal.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
-import { JERARQUIA } from '../../data/mock/historiaClinica.js'
 import { condicionDeParada, maquinasDeParada, textoMaquinas } from '../../utils/paradas.js'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
 
@@ -51,11 +50,11 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
       return
     }
     if (paradaId) {
-      await enviarTareaAParada(tarea.id, { paradaId })
+      await enviarTareaAParada(tarea.id, { paradaId, semana: tarea.semana })
       onClose(); onDone?.(); onToast?.('Tarea enviada a la parada'); return
     }
     if (tarea.paradaSugerida?.existe && tarea.paradaSugerida?.id) {
-      await enviarTareaAParada(tarea.id, { paradaId: tarea.paradaSugerida.id })
+      await enviarTareaAParada(tarea.id, { paradaId: tarea.paradaSugerida.id, semana: tarea.semana })
       onClose(); onDone?.(); onToast?.('Tarea enviada a la parada'); return
     }
     setShowDlg(true)
@@ -139,9 +138,15 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                     </div>
                     <div>
                       <label className={labelCls}>Origen</label>
-                      <ReadValue>Sugerencia del sistema</ReadValue>
+                      <ReadValue>{tarea.origen}</ReadValue>
                     </div>
                   </div>
+                  {tarea.motivo && (
+                    <div>
+                      <label className={labelCls}>¿Por qué?</label>
+                      <p className="text-sm text-ink-700">{tarea.motivo}</p>
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
@@ -259,38 +264,27 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           onToast?.('Parada creada y tarea asignada')
         }}
         onToast={onToast}
-        precarga={(() => {
-          let sistemaId = ''
-          let sistemaNombre = tarea.sistema || ''
-          const sis = (JERARQUIA[tarea.maquina] || []).find(s => s.nombre === tarea.sistema)
-          if (sis) sistemaId = sis.id
-          else {
-            for (const s of (JERARQUIA[tarea.maquina] || [])) {
-              if (s.componentes?.some(c => c.nombre === tarea.componente)) { sistemaId = s.id; sistemaNombre = s.nombre; break }
-            }
-          }
-          const comp = (JERARQUIA[tarea.maquina] || []).flatMap(s => s.componentes || []).find(c => c.nombre === tarea.componente)
-          return {
-            titulo: tarea.tarea,
-            fecha: new Date().toISOString().slice(0, 10),
-            horaInicio: '08:00',
-            horaFin: '12:00',
+        asignarTarea={tarea}
+        precarga={{
+          titulo: tarea.tarea,
+          fecha: tarea.paradaSugerida?.fecha || new Date().toISOString().slice(0, 10),
+          horaInicio: '08:00',
+          horaFin: '12:00',
+          maquina: tarea.maquina,
+          sistema: tarea.sistema,
+          componente: tarea.componenteId,
+          tipoTarea: 'Predictiva',
+          cardInicial: {
+            id: 'card-preload-' + tarea.id,
             maquina: tarea.maquina,
-            sistema: sistemaId || sistemaNombre,
-            componente: comp?.id || tarea.componente,
-            tipoTarea: 'Predictiva',
-            cardInicial: {
-              id: 'card-preload-' + Date.now(),
-              maquina: tarea.maquina,
-              sistemaId: sistemaId || sistemaNombre,
-              sistemaNombre: sistemaNombre,
-              componenteId: comp?.id || tarea.componente,
-              componenteNombre: tarea.componente,
-              estado: 'confirmada',
-              tareas: [{ descripcion: tarea.tarea, tipo: 'Predictiva', id: 't-preload-' + Date.now() }]
-            }
-          }
-        })()}
+            sistemaId: tarea.sistema,
+            sistemaNombre: tarea.sistema,
+            componenteId: tarea.componenteId,
+            componenteNombre: tarea.componente,
+            estado: 'confirmada',
+            tareas: [{ descripcion: tarea.tarea, tipo: 'Predictiva', id: 't-preload-' + tarea.id }],
+          },
+        }}
       />
     </div>,
     document.body

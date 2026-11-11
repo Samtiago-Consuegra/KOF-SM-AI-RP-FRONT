@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, CornerDownLeft, ListPlus, Info, CalendarPlus, Factory, ListChecks } from 'lucide-react'
-import { programarParada, actualizarParada } from '../../services/mantenimientoService.js'
-import { MAQUINAS } from '../../data/mock/mantenimiento.js'
+import { programarParada, actualizarParada, crearParadaYAsignar, getCatalogoParada } from '../../services/mantenimientoService.js'
+import Skeleton from '../ui/Skeleton.jsx'
 import { useProgramarParada } from '../../hooks/useProgramarParada.js'
 import TareasComponenteCard from './TareasComponenteCard.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
@@ -34,10 +34,12 @@ function buildPrecargaFromEdit(parada) {
   }
 }
 
-export default function ProgramarParadaModal({ open, onClose, onCreated, editParada = null, precarga = null, onToast }) {
+export default function ProgramarParadaModal({ open, onClose, onCreated, editParada = null, precarga = null, asignarTarea = null, onToast }) {
   const isEdit = !!editParada
   const initial = isEdit ? buildPrecargaFromEdit(editParada) : precarga
-  const hook = useProgramarParada({ initialPrecarga: initial })
+  const [catalogo, setCatalogo] = useState({ maquinas: [], jerarquia: {} })
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(false)
+  const hook = useProgramarParada({ initialPrecarga: initial, jerarquia: catalogo.jerarquia })
   const [saving, setSaving] = useState(false)
   const [shake, setShake] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
@@ -48,6 +50,17 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
     if (open) {
       dirtyRef.current = false
     }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    let vivo = true
+    setCargandoCatalogo(true)
+    getCatalogoParada()
+      .then((cat) => { if (vivo) setCatalogo(cat) })
+      .catch(() => { if (vivo) onToast?.('No se pudo cargar el catálogo de máquinas') })
+      .finally(() => { if (vivo) setCargandoCatalogo(false) })
+    return () => { vivo = false }
   }, [open])
 
   useEffect(() => {
@@ -108,14 +121,16 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
       if (isEdit) {
         await actualizarParada(editParada.id, data)
         onToast?.('Parada actualizada')
+      } else if (asignarTarea) {
+        await crearParadaYAsignar({ tareaId: asignarTarea.id, parada: data, semana: asignarTarea.semana })
       } else {
         await programarParada(data)
         onToast?.('Parada programada')
       }
       onClose()
       onCreated?.()
-    } catch {
-      onToast?.('Error al guardar')
+    } catch (e) {
+      onToast?.(e?.message || 'Error al guardar')
     } finally {
       setSaving(false)
     }
@@ -131,7 +146,9 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
         @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
         @keyframes card-group-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .card-group-anim { animation: card-group-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-        @media (prefers-reduced-motion: reduce) { .modal-anim { animation: none !important; } .shake { animation: none !important; } .card-group-anim { animation: none !important; } }
+        @keyframes cat-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .cat-anim { animation: cat-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+        @media (prefers-reduced-motion: reduce) { .modal-anim { animation: none !important; } .shake { animation: none !important; } .card-group-anim, .cat-anim { animation: none !important; } .cat-skel { animation: none !important; } }
         .shake { animation: shake 400ms ease-in-out; }
       `}</style>
       <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm" style={{ animation: 'fade-in 200ms ease-out' }} onClick={handleClose} />
@@ -190,12 +207,19 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
 
                 <div className="border-t border-dashed border-neutral-300 pt-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-400">Ubicación de la tarea</p>
-                  <div className="space-y-3">
+                  {cargandoCatalogo && (
+                    <div className="mb-3 space-y-2" aria-busy="true" aria-label="Cargando catálogo de máquinas">
+                      <Skeleton className="cat-skel h-9 w-full" />
+                      <Skeleton className="cat-skel h-9 w-full" />
+                      <Skeleton className="cat-skel h-9 w-full" />
+                    </div>
+                  )}
+                  <div className={`space-y-3 ${cargandoCatalogo ? 'hidden' : 'cat-anim'}`}>
                     <div>
                       <label className={labelCls} htmlFor="parada-maquina">Máquina</label>
                       <select id="parada-maquina" value={hook.maquina} onChange={(e) => hook.setMaquina(e.target.value)} disabled={hook.editingCardId && hook.cards.find(c => c.id === hook.editingCardId)?.estado === 'edicion'} className={inputCls}>
                         <option value="">Seleccionar</option>
-                        {MAQUINAS.map((m) => <option key={m} value={m}>{m}</option>)}
+                        {catalogo.maquinas.map((m) => <option key={m} value={m}>{m}</option>)}
                       </select>
                       {hook.errores.maquina && <p className="mt-1 text-xs text-primary-600">{hook.errores.maquina}</p>}
                     </div>

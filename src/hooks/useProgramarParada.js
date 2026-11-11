@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { JERARQUIA } from '../data/mock/historiaClinica.js'
 
-export function useProgramarParada({ initialPrecarga = null } = {}) {
+export function useProgramarParada({ initialPrecarga = null, jerarquia = {} } = {}) {
   const [titulo, setTitulo] = useState(initialPrecarga?.titulo || '')
   const [fecha, setFecha] = useState(initialPrecarga?.fecha || new Date().toISOString().slice(0, 10))
   const [horaInicio, setHoraInicio] = useState(initialPrecarga?.horaInicio || '06:00')
@@ -18,8 +17,8 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
   const [errores, setErrores] = useState({})
   const [msgTarea, setMsgTarea] = useState('')
 
-  const sistemas = maquina ? (JERARQUIA[maquina] || []).map(s => ({ id: s.id, nombre: s.nombre })) : []
-  const componentes = (maquina && sistema) ? (JERARQUIA[maquina]?.find(s => s.id === sistema)?.componentes || []) : []
+  const sistemas = maquina ? (jerarquia[maquina] || []).map(s => ({ id: s.id, nombre: s.nombre })) : []
+  const componentes = (maquina && sistema) ? (jerarquia[maquina]?.find(s => s.id === sistema)?.componentes || []) : []
 
   const onChangeMaquina = (m) => {
     setMaquina(m)
@@ -45,7 +44,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
       id,
       maquina,
       sistemaId: sistema,
-      sistemaNombre: JERARQUIA[maquina]?.find(s => s.id === sistema)?.nombre || sistema,
+      sistemaNombre: jerarquia[maquina]?.find(s => s.id === sistema)?.nombre || sistema,
       componenteId: componente,
       componenteNombre: componentes.find(c => c.id === componente)?.nombre || componente,
       estado: 'abierta', // abierta | confirmada | edicion
@@ -207,12 +206,6 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
         })
       })
     })
-    // determinar tipo predominante
-    const counts = { Correctiva: 0, Predictiva: 0, Preventiva: 0 }
-    tareas.forEach(t => { if (counts.hasOwnProperty(t.tipo)) counts[t.tipo]++ })
-    let tipoPred = 'Preventiva'
-    if (counts.Correctiva >= counts.Predictiva && counts.Correctiva >= counts.Preventiva) tipoPred = 'Correctiva'
-    else if (counts.Predictiva >= counts.Preventiva) tipoPred = 'Predictiva'
     const maquinas = [...new Set(cards.map((card) => card.maquina).filter(Boolean))]
 
     return {
@@ -223,7 +216,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
       condicion,
       maquinas,
       maquina: maquinas[0] || maquina,
-      tipo: tipoPred,
+      tipo: tareas[0]?.tipo || 'Preventiva',
       tareas: tareas.map(t => t.descripcion),
       tareasDetalle: tareas
     }
