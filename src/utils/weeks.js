@@ -66,6 +66,25 @@ function getISOWeekNumber(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
 }
 
+/**
+ * Semana ISO (lunes a domingo) en formato "AAAA-Wnn". El año es el ISO: el del
+ * jueves de esa semana (p. ej. 2027-01-01 → "2026-W53").
+ */
+export function semanaISO(fecha = new Date()) {
+  let d
+  if (fecha instanceof Date) d = new Date(fecha)
+  else if (typeof fecha === 'string' && fecha) d = new Date(fecha.length <= 10 ? `${fecha}T00:00:00` : fecha)
+  else d = new Date()
+  if (Number.isNaN(d.getTime())) d = new Date()
+
+  const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  const dayNum = utc.getUTCDay() || 7
+  utc.setUTCDate(utc.getUTCDate() + 4 - dayNum)
+  const anio = utc.getUTCFullYear()
+  const semana = getISOWeekNumber(d)
+  return `${anio}-W${String(semana).padStart(2, '0')}`
+}
+
 export function getMonthList(count = 12) {
   const now = new Date()
   const months = []
