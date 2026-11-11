@@ -12,6 +12,7 @@ import LineaTiempo from '../components/historia/LineaTiempo.jsx'
 import ComponentesMaquina from '../components/historia/ComponentesMaquina.jsx'
 import ExportarHistoriaModal from '../components/historia/ExportarHistoriaModal.jsx'
 import ComponenteSelect from '../components/historia/ComponenteSelect.jsx'
+import AntecedentesComponente from '../components/historia/AntecedentesComponente.jsx'
 import MotorVacio from '../components/ui/MotorVacio.jsx'
 import {
   MAQUINAS,
@@ -22,6 +23,7 @@ import {
   getComponentesOrdenados,
   getJerarquia,
   getResumenExportacion,
+  getAntecedentes,
 } from '../services/historiaClinicaService'
 import { resolveTimeRange } from '../utils/period.js'
 import { toISODate } from '../utils/format.js'
@@ -196,6 +198,14 @@ export default function HistoriaClinica() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maquina, filtrosBase, resolved.seedKey])
 
+  // Antecedentes del motor (fallas mayores, ACR, repuestos, antes/después)
+  const [antecedentes, setAntecedentes] = useState(null)
+  useEffect(() => {
+    let alive = true
+    getAntecedentes(maquina, componenteId || null).then((a) => { if (alive) setAntecedentes(a) })
+    return () => { alive = false }
+  }, [maquina, componenteId])
+
   const handleExportar = useCallback(async ({ desde, hasta }) => {
     const resumen = await getResumenExportacion({
       maquina,
@@ -306,6 +316,40 @@ export default function HistoriaClinica() {
           />
         </div>
       </div>
+
+      {/* Fila 3: Antecedentes (solo si el motor trae algo) */}
+      {antecedentes && (antecedentes.componentes.length > 0 || antecedentes.causasFalla.length > 0 || antecedentes.causasAltoTiempo.length > 0) && (
+        <Card key={`ant-${maquina}-${componenteId}`} className="p-6 motion-safe:animate-[fade-swap-in_280ms_cubic-bezier(0.22,1,0.36,1)_both]">
+          <h2 className="text-lg font-semibold text-ink-900">Antecedentes</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {[
+              { titulo: 'Causas de falla', items: antecedentes.causasFalla, chip: 'border-neutral-200 bg-[#F8F9FA] text-[#111827]', badge: 'bg-[#111827] text-white' },
+              { titulo: 'Causas de alto tiempo', items: antecedentes.causasAltoTiempo, chip: 'border-[#0D9488]/20 bg-[#0D9488]/5 text-[#111827]', badge: 'bg-[#0D9488] text-white' },
+            ].filter((g) => g.items.length > 0).map((g) => (
+              <div key={g.titulo}>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#111827]/60">{g.titulo}</h3>
+                <ul className="flex flex-wrap gap-2">
+                  {g.items.map(([causa, n], i) => (
+                    <li
+                      key={causa}
+                      className={`inline-flex items-center gap-2 rounded-full border py-1 pl-3 pr-1 text-sm ${g.chip} motion-safe:animate-[fade-swap-in_220ms_cubic-bezier(0.22,1,0.36,1)_both]`}
+                      style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
+                    >
+                      {causa}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${g.badge}`}>{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          {antecedentes.componentes.length > 0 && (
+            <div className="mt-6 space-y-4">
+              {antecedentes.componentes.map((c) => <AntecedentesComponente key={c.Id_componente} componente={c} />)}
+            </div>
+          )}
+        </Card>
+      )}
       </>
       )}
 

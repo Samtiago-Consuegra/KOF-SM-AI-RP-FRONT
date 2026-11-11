@@ -2,7 +2,7 @@
 // Toda la UI accede a los datos SOLO desde aquí. Los valores salen del motor
 // (/motor/historia-clinica y /motor/historia/eventos); la traducción de campos vive en
 // src/api/motorAdapter.js. El front no calcula indicadores.
-import { getHistoriaClinica, getEventosHistoria } from '../api/motor'
+import { getHistoriaClinica, getHistoriaClinicaAcr, getEventosHistoria } from '../api/motor'
 import {
   adaptarHistoria,
   adaptarFichaHistoria,
@@ -94,12 +94,56 @@ export async function getComponentesOrdenados(maquina) {
   return conEstado(adaptarComponentesHistoria(h, maquina), h)
 }
 
+// Antecedentes (historia_clinica_acr.json): fallas mayores, ACR, repuestos críticos y
+// antes/después de mantenimientos. "calculando", {available:false} o error → null.
+let ultimoAcr = null
+let acrEnCurso = null
+
+function cargarAcr() {
+  if (ultimoAcr) return Promise.resolve(ultimoAcr)
+  if (acrEnCurso) return acrEnCurso
+  acrEnCurso = getHistoriaClinicaAcr()
+    .then((res) => {
+      const datos = Array.isArray(res?.maquinas) ? res : res?.data
+      if (!Array.isArray(datos?.maquinas)) return null
+      ultimoAcr = datos
+      return datos
+    })
+    .catch(() => null)
+    .finally(() => { acrEnCurso = null })
+  return acrEnCurso
+}
+
+const tieneAntecedentes = (c) =>
+  (c.Fallas_mayores?.N ?? 0) > 0 ||
+  (c.ACR?.length ?? 0) > 0 ||
+  c.Repuesto_critico != null ||
+  (c.Pre_post_mantenimientos?.length ?? 0) > 0
+
+const ordenarConteo = (obj) => Object.entries(obj ?? {}).sort((a, b) => b[1] - a[1])
+
+// Une por Id_componente con maquinas[].componentes[]. Sin idComponente: todos los que tienen antecedentes.
+export async function getAntecedentes(maquina, idComponente = null) {
+  const acr = await cargarAcr()
+  const maq = acr?.maquinas.find((m) => m.Maquina === maquina)
+  if (!maq) return null
+  const componentes = (maq.componentes ?? [])
+    .filter((c) => !idComponente || String(c.Id_componente) === String(idComponente))
+    .filter(tieneAntecedentes)
+  return {
+    causasFalla: ordenarConteo(maq.Causas_falla),
+    causasAltoTiempo: ordenarConteo(maq.Causas_alto_tiempo),
+    componentes,
+  }
+}
+
 // Resumen para exportar el PDF: máquina COMPLETA según el motor. El alcance de
 // sistema/componente solo se documenta como línea informativa.
 export async function getResumenExportacion({ maquina, desde, hasta, sistema, componente }) {
   const h = await cargarHistoria()
   const jerarquia = jerarquiaDe(maquina)
   const resumen = adaptarResumenHistoria(h, maquina)
+  const antecedentes = await getAntecedentes(maquina, componente)
 
   const alcanceSistemas = sistema
     ? jerarquia.find((s) => s.id === sistema)?.nombre ?? null
@@ -123,6 +167,7 @@ export async function getResumenExportacion({ maquina, desde, hasta, sistema, co
     avisosFalla: resumen.avisosFalla,
     topFallas: resumen.topFallas,
     tareasPendientes: resumen.tareasPendientes,
+    antecedentes,
   }
 }
 

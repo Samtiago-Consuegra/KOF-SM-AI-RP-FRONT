@@ -5,7 +5,7 @@ Stack: React + Vite + Tailwind v4. Backend: FastAPI en Render + Supabase.
 
 ## Reglas permanentes
 
-- Usa las skills ui-ux-pro-max, animation-designer y ui-animation en todo lo visual.
+- Usa las skills ui-ux-pro-max, animation-designer, ui-animation y ponytail en todo lo visual.
 - Respeta la línea de diseño Stitch y la paleta: primario #F40000, oscuro #111827, teal #0D9488, gris #F8F9FA.
 - Todo componente o estado nuevo lleva animaciones suaves y respeta prefers-reduced-motion.
 - Nunca uses Playwright.
