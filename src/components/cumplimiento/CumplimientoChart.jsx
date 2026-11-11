@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { Maximize2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
 import Card from '../ui/Card.jsx'
-import { getCumplimientoSemanal } from '../../services/cumplimientoService.js'
-import { MAQUINAS_CRITICAS } from '../../data/mock/cumplimiento.js'
+import { getCumplimientoSemanal, MAQUINAS_CRITICAS } from '../../services/cumplimientoService.js'
 
 const MAQUINA_COLORS = {
   Llenadora: 'var(--color-primary-500)',
@@ -14,11 +13,34 @@ const MAQUINA_COLORS = {
 
 const META = 90
 
-export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, bare = false, refreshKey = 0 }) {
-  const [data, setData] = useState([])
-  const [loading, setLoading] = useState(true)
+const ESTILOS = `
+@keyframes kof-chart-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.kof-chart-in { animation: kof-chart-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .kof-chart-in { animation: kof-chart-fade 160ms ease both; }
+}
+@keyframes kof-chart-fade { from { opacity: 0; } to { opacity: 1; } }
+`
+
+/** Con `data` no consulta el service: dibuja la serie recibida agrupada por `semana` (p. ej. preventivo SAP). */
+export default function CumplimientoChart({
+  rango,
+  maquina = 'todas',
+  onExpand,
+  bare = false,
+  refreshKey = 0,
+  data: dataExterna,
+  titulo = 'Cumplimiento semanal',
+  subtitulo,
+  unidad = 'tareas',
+}) {
+  const [dataPropia, setData] = useState([])
+  const [cargando, setLoading] = useState(true)
+  const data = dataExterna ?? dataPropia
+  const loading = dataExterna ? false : cargando
 
   useEffect(() => {
+    if (dataExterna) return undefined
     let ignore = false
     setLoading(true)
     getCumplimientoSemanal({ rango, maquina }).then((res) => {
@@ -28,12 +50,12 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
       }
     })
     return () => { ignore = true }
-  }, [rango, maquina, refreshKey])
+  }, [rango, maquina, refreshKey, dataExterna])
 
   const maquinasToShow = maquina === 'todas' ? MAQUINAS_CRITICAS : [maquina]
   const chartData = []
 
-  if (rango?.type === 'month') {
+  if (dataExterna || rango?.type === 'month') {
     const semanas = [...new Set(data.map((d) => d.semana))].sort()
     semanas.forEach((sem) => {
       const row = { name: sem }
@@ -65,7 +87,7 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
           const det = payload[0]?.payload?.[`${m}_det`] || {}
           return (
             <p key={i} className="text-xs text-ink-700">
-              <span style={{ color: MAQUINA_COLORS[m] }}>●</span> {m}: {p.value}% ({det.ejecutadas || 0} de {det.programadas || 0} tareas)
+              <span style={{ color: MAQUINA_COLORS[m] }}>●</span> {m}: {p.value}% ({det.ejecutadas || 0} de {det.programadas || 0} {unidad})
             </p>
           )
         })}
@@ -78,6 +100,8 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
       Cargando gráfica…
     </div>
   ) : (
+    <div className="kof-chart-in h-full">
+    <style>{ESTILOS}</style>
     <ResponsiveContainer width="100%" height={bare ? '100%' : 320}>
       <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-neutral-200)" />
@@ -91,6 +115,7 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
         ))}
       </BarChart>
     </ResponsiveContainer>
+    </div>
   )
 
   if (bare) {
@@ -101,29 +126,31 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
         <div>
-          <h2 className="text-lg font-bold text-ink-900">Cumplimiento semanal</h2>
+          <h2 className="text-lg font-bold text-ink-900">{titulo}</h2>
           <p className="text-sm text-ink-500">
-            {maquina === 'todas'
+            {subtitulo ?? (maquina === 'todas'
               ? 'Porcentaje de tareas ejecutadas por semana y por máquina.'
-              : `Vista de ${maquina}. Porcentaje de tareas ejecutadas por semana.`}
+              : `Vista de ${maquina}. Porcentaje de tareas ejecutadas por semana.`)}
           </p>
         </div>
+        {onExpand && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onExpand && onExpand() }}
+          onClick={(e) => { e.stopPropagation(); onExpand() }}
           aria-label="Ver en grande"
           title="Ver en grande"
           className="grid size-9 place-items-center rounded-xl border border-neutral-200 bg-white text-ink-700 hover:bg-neutral-50"
         >
           <Maximize2 className="size-4" aria-hidden="true" />
         </button>
+        )}
       </div>
       <div
-        className="cursor-pointer p-4 transition-shadow hover:shadow-sm"
+        className={onExpand ? 'cursor-pointer p-4 transition-shadow hover:shadow-sm' : 'p-4'}
         onClick={() => onExpand && onExpand()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand && onExpand() } }}
+        role={onExpand ? 'button' : undefined}
+        tabIndex={onExpand ? 0 : undefined}
+        onKeyDown={(e) => { if (onExpand && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onExpand() } }}
       >
         {chart}
       </div>

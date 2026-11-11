@@ -572,3 +572,110 @@ export function adaptarSubida(res) {
     archivo: res?.archivo ? adaptarArchivo(TIPOS_ARCHIVO.find((t) => t.clave === res.archivo.tipo) || { clave: res.archivo.tipo, label: res.archivo.tipo, icon: 'FileSpreadsheet' }, res.archivo) : null,
   }
 }
+
+// --- Cumplimiento: paradas (/paradas) ------------------------------------------------------------
+
+const conHora = (fecha, hora) => (fecha && /^\d{2}:\d{2}/.test(hora || '') ? `${fecha}T${String(hora).slice(0, 5)}:00` : null)
+
+/** Parada de /paradas (snake_case + tareas del motor) → forma que usan las vistas de Cumplimiento. */
+export function adaptarParadaCumplimiento(p = {}) {
+  const maquinas = Array.isArray(p.maquinas) ? p.maquinas : []
+  const tareas = Array.isArray(p.tareas) ? p.tareas : []
+  const historial = Array.isArray(p.historial_reprogramaciones) ? p.historial_reprogramaciones : []
+  const ultimo = historial[historial.length - 1]
+  // Tareas sin cumplir que el back movió (a otra parada o con la misma) cuentan como pospuestas.
+  const movidaA = p.reprogramada_a || (ultimo ? p.id_parada : null)
+  const movidaEl = p.reprogramada_a ? p.actualizada_en : ultimo?.reprogramada_en
+  const primera = tareas[0] || {}
+  return {
+    id: p.id_parada,
+    titulo: p.titulo || '',
+    maquina: maquinas[0] || '',
+    maquinas,
+    sistema: primera.Sistema || '',
+    componente: primera.Componente || '',
+    tipo: primera.Tipo_tarea || 'Preventiva',
+    modalidad: p.modalidad || '',
+    ordenSap: null,
+    estadoBase: p.estado_base || 'Pendiente',
+    inicio: conHora(p.fecha, p.inicio),
+    finProg: conHora(p.fecha, p.fin),
+    finReal: conHora(p.fecha, p.fin_real),
+    tareas: tareas.map((t, i) => ({
+      id: String(t.Id_tarea ?? `${p.id_parada}-${i + 1}`),
+      nombre: t.Tarea || '',
+      componente: t.Componente || '',
+      maquina: t.Maquina || '',
+      completada: t.Completada === true,
+      comentario: t.Comentario ?? null,
+      reprogramadaA: !t.Completada && movidaA ? movidaA : null,
+      reprogramadaEl: !t.Completada && movidaA ? movidaEl ?? null : null,
+    })),
+    observaciones: p.observaciones || '',
+    historialReprogramaciones: historial.map((h) => ({
+      fechaOriginal: conHora(historial[0].fecha_anterior, historial[0].inicio_anterior) || historial[0].fecha_anterior,
+      fechaNueva: conHora(h.fecha_nueva, h.inicio_nuevo) || h.fecha_nueva,
+      registradaEl: h.reprogramada_en || null,
+      motivo: h.motivo || '',
+    })),
+    paradaOriginalId: p.parada_original_id || null,
+    reprogramadaA: p.reprogramada_a || null,
+    reprogramadaAFecha: p.reprogramada_a_fecha || null,
+    cumplidaParcial: p.cumplida_parcial === true,
+    avanceAlCumplir: p.avance_al_cumplir ?? null,
+  }
+}
+
+/** { [idTarea]: boolean } de la app → tareas_estado del back. */
+export function tareasAMotor(tareas) {
+  if (!tareas) return undefined
+  return Object.fromEntries(Object.entries(tareas).map(([id, v]) => [id, { completada: !!v }]))
+}
+
+// --- Cumplimiento: preventivo SAP (/motor/cumplimiento-sap) -------------------------------------
+
+function serieSap(lista, campo) {
+  return (Array.isArray(lista) ? lista : []).map((r) => ({
+    semana: String(r[campo] ?? ''),
+    maquina: r.Maquina || '',
+    cumplimiento: r.Cumplimiento_pct == null ? 0 : Math.round(r.Cumplimiento_pct),
+    ejecutadas: r.Ejecutadas ?? 0,
+    programadas: r.Ordenes ?? 0,
+  }))
+}
+
+const mezcla = (m, prefijo) => ({
+  preventiva: m[`${prefijo}_preventiva`] ?? 0,
+  predictiva: m[`${prefijo}_predictiva`] ?? 0,
+  correctiva: m[`${prefijo}_correctiva`] ?? 0,
+})
+
+export function adaptarCumplimientoSap(res) {
+  const calculando = res?.status === 'calculando'
+  return {
+    available: res?.available !== false,
+    calculando,
+    message: res?.message || (calculando ? 'El motor está calculando el cumplimiento SAP. Vuelve en unos minutos.' : ''),
+    datosHasta: res?.datos_hasta || null,
+    maquinas: (Array.isArray(res?.maquinas) ? res.maquinas : []).map((m) => ({
+      maquina: m.Maquina || '',
+      cumplimientoPct: m.Cumplimiento_pct ?? null,
+      cumplimiento13Pct: m.Cumplimiento_13sem_pct ?? null,
+      ejecutadas: m.Ejecutadas ?? 0,
+      noEjecutadas: m.No_ejecutadas ?? 0,
+      mezclaOrdenes: mezcla(m, 'Pct_ordenes'),
+      mezclaCosto: mezcla(m, 'Pct_costo'),
+    })),
+    semanal: serieSap(res?.semanal, 'Semana'),
+    trimestral: serieSap(res?.trimestral, 'Trimestre'),
+    pendientes: (Array.isArray(res?.pendientes) ? res.pendientes : []).map((r, i) => ({
+      id: `${r.Orden ?? 'orden'}-${i}`,
+      orden: r.Orden ?? '',
+      maquina: r.Maquina || '',
+      plan: r.Plan ?? '',
+      texto: r.Texto || '',
+      fechaProgramada: r.Fecha_programada || null,
+      diasVencida: r.Dias_vencida ?? null,
+    })),
+  }
+}

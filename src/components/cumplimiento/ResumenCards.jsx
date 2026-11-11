@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Card from '../ui/Card.jsx'
 import Skeleton from '../ui/Skeleton.jsx'
+import MotorVacio from '../ui/MotorVacio.jsx'
 import useCountUp from '../../hooks/useCountUp.js'
 import { getResumen } from '../../services/cumplimientoService.js'
 
@@ -34,6 +35,10 @@ export default function ResumenCards({ rango, maquina = 'todas', refreshKey = 0 
     )
   }
   
+  if (data.available === false) {
+    return <MotorVacio message={data.message || 'Aún no hay paradas registradas en el servidor.'} />
+  }
+
   return (
     <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
       <Card className="p-5 flex flex-col gap-2">

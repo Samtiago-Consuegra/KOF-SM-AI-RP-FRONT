@@ -14,6 +14,67 @@ import ConfirmDialog from '../components/mantenimiento/ConfirmDialog'
 import { reprogramarParada } from '../services/cumplimientoService'
 import { useToast } from '../context/ToastContext'
 import PageHeader from '../components/ui/PageHeader'
+import PreventivoSap from '../components/cumplimiento/PreventivoSap'
+
+const VISTAS = [
+  { id: 'paradas', label: 'Paradas programadas' },
+  { id: 'sap', label: 'Preventivo SAP' },
+]
+
+const ESTILOS = `
+.kof-seg-pill { transition: transform 240ms cubic-bezier(0.25, 1, 0.5, 1); }
+.kof-seg-btn { transition: color 200ms ease; touch-action: manipulation; }
+@keyframes kof-vista-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.kof-vista-in { animation: kof-vista-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .kof-seg-pill { transition: none; }
+  .kof-vista-in { animation: kof-vista-fade 160ms ease both; }
+}
+@keyframes kof-vista-fade { from { opacity: 0; } to { opacity: 1; } }
+`
+
+function SelectorVista({ value, onChange }) {
+  const indice = Math.max(0, VISTAS.findIndex((v) => v.id === value))
+  const onKeyDown = (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+    e.preventDefault()
+    const sig = VISTAS[(indice + (e.key === 'ArrowRight' ? 1 : VISTAS.length - 1)) % VISTAS.length]
+    onChange(sig.id)
+    document.getElementById(`vista-tab-${sig.id}`)?.focus()
+  }
+  return (
+    <div
+      role="tablist"
+      aria-label="Vista de cumplimiento"
+      onKeyDown={onKeyDown}
+      className="relative inline-grid grid-cols-2 rounded-xl border border-neutral-200 bg-[#F8F9FA] p-1"
+    >
+      <span
+        aria-hidden="true"
+        className="kof-seg-pill absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-sm ring-1 ring-neutral-200"
+        style={{ transform: `translateX(${indice * 100}%)` }}
+      />
+      {VISTAS.map((v) => {
+        const activa = v.id === value
+        return (
+          <button
+            key={v.id}
+            id={`vista-tab-${v.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activa}
+            aria-controls={`vista-panel-${v.id}`}
+            tabIndex={activa ? 0 : -1}
+            onClick={() => onChange(v.id)}
+            className={`kof-seg-btn relative z-10 min-h-9 rounded-lg px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${activa ? 'text-[#111827]' : 'text-ink-500 hover:text-ink-700'}`}
+          >
+            {v.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 const MAQUINA_OPTIONS = [
   { value: 'todas', label: 'Todas las máquinas', hint: '4 críticas' },
@@ -31,6 +92,7 @@ export default function Cumplimiento() {
   const [weekKey, setWeekKey] = useState(weeks[0].key)
   const [monthKey, setMonthKey] = useState(null)
   const [maquina, setMaquina] = useState('todas')
+  const [vista, setVista] = useState('paradas')
   const [showChartModal, setShowChartModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -101,11 +163,14 @@ export default function Cumplimiento() {
 
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto">
+      <style>{ESTILOS}</style>
       <div className="space-y-4">
         <PageHeader
           title="Cumplimiento del plan"
           subtitle="Seguimiento de las tareas aceptadas en la pestaña de Mantenimiento"
         />
+        <SelectorVista value={vista} onChange={setVista} />
+        {vista === 'paradas' && (
         <div
           className="flex flex-wrap items-start gap-2.5"
           role="group"
@@ -144,8 +209,15 @@ export default function Cumplimiento() {
             Limpiar
           </button>
         </div>
+        )}
       </div>
 
+      {vista === 'sap' ? (
+        <div key="sap" id="vista-panel-sap" role="tabpanel" aria-labelledby="vista-tab-sap" className="kof-vista-in">
+          <PreventivoSap />
+        </div>
+      ) : (
+      <div key="paradas" id="vista-panel-paradas" role="tabpanel" aria-labelledby="vista-tab-paradas" className="kof-vista-in space-y-6">
       <ResumenCards rango={rangoActivo} maquina={maquina} refreshKey={refreshKey} />
 
       <CumplimientoChart
@@ -161,6 +233,8 @@ export default function Cumplimiento() {
         onReprogramar={handleReprogramar}
         onVerDetalle={handleVerDetalle}
       />
+      </div>
+      )}
 
       <ChartExpandedModal
         open={showChartModal}

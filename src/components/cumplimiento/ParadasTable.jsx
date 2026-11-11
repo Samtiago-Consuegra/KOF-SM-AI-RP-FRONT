@@ -8,8 +8,7 @@ import AlertaCumplidaParcial from './AlertaCumplidaParcial.jsx'
 import LeyendaReprogramada from './LeyendaReprogramada.jsx'
 import Paginacion from './Paginacion.jsx'
 import Tooltip from './Tooltip.jsx'
-import { getParadas } from '../../services/cumplimientoService.js'
-import { MAQUINAS_CRITICAS } from '../../data/mock/cumplimiento.js'
+import { getParadas, MAQUINAS_CRITICAS } from '../../services/cumplimientoService.js'
 import { formatFechaHabil, formatRangoHoras } from '../../utils/weeks.js'
 
 const PAGE_SIZE = 5
