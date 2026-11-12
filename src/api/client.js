@@ -115,8 +115,18 @@ function beginSlowWatch() {
 const getCache = new Map()
 let warmUpPromise = null
 
+// Salidas del motor que solo cambian al terminar una corrida (useMotorEstado limpia la caché).
+const MOTOR_CACHEABLE = new Set([
+  '/motor/catalogo',
+  '/motor/historia-clinica',
+  '/motor/historia-clinica-acr',
+  '/motor/cumplimiento-sap',
+  '/motor/plan-recomendado',
+])
+
 function isCacheableGet(path, params) {
   if (path === '/machines' || path === '/eda/periodos') return true
+  if (MOTOR_CACHEABLE.has(path)) return true
   return path === '/predicciones' && params?.include === 'matriz,meta'
 }
 
@@ -173,8 +183,11 @@ export function warmUpApi() {
   return warmUpPromise
 }
 
-async function request(path, { params, signal, body, headers, auth = true, trackSlow = true } = {}) {
-  const method = body !== undefined && body !== null ? 'POST' : 'GET'
+async function request(
+  path,
+  { params, signal, body, headers, auth = true, trackSlow = true, method: forcedMethod, responseType } = {},
+) {
+  const method = forcedMethod || (body !== undefined && body !== null ? 'POST' : 'GET')
   const query = buildQuery(params)
   const cacheKey = `${path}${query}`
   const cacheable = method === 'GET' && isCacheableGet(path, params)
@@ -212,9 +225,18 @@ async function request(path, { params, signal, body, headers, auth = true, track
     }
 
     if (res.status === 204) return null
+    // Descargas binarias (Excel): si el back responde JSON (202 calculando, {available:false}
+    // o un error) se trata como JSON; si no, se devuelve el Blob.
+    if (responseType === 'blob' && res.ok) {
+      const type = res.headers.get('content-type') || ''
+      if (!type.includes('application/json')) return res.blob()
+    }
     const payload = await res.json().catch(() => null)
     if (!res.ok) throw new ApiError(errorMessage(payload, res.status), res.status)
-    if (cacheable) writeCache(cacheKey, payload)
+    // 202 {"status":"calculando"} y {"available": false} son estados normales: se devuelven
+    // tal cual, pero no se cachean para que la vista los vuelva a pedir al terminar el motor.
+    const transitorio = res.status === 202 || payload?.available === false
+    if (cacheable && !transitorio) writeCache(cacheKey, payload)
     return payload
   } finally {
     doneSlow()
@@ -224,6 +246,10 @@ async function request(path, { params, signal, body, headers, auth = true, track
 export const apiGet = (path, params, opts) => request(path, { ...opts, params })
 
 export const apiPost = (path, body, opts) => request(path, { ...opts, body })
+
+export const apiPut = (path, body, opts) => request(path, { ...opts, body, method: 'PUT' })
+
+export const apiDelete = (path, opts) => request(path, { ...opts, method: 'DELETE' })
 
 export async function apiUpload(path, formData, opts) {
   const result = await request(path, { ...opts, body: formData, trackSlow: false })

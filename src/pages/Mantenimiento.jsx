@@ -11,6 +11,7 @@ import TablaSugerencias from '../components/mantenimiento/TablaSugerencias.jsx'
 import AsistenteChat from '../components/mantenimiento/AsistenteChat.jsx'
 import ProgramarParadaModal from '../components/mantenimiento/ProgramarParadaModal.jsx'
 import DetalleParadaModal from '../components/mantenimiento/DetalleParadaModal.jsx'
+import { cargarCatalogo } from '../data/catalogoMotor.js'
 
 function Toast({ toast, onClose }) {
   useEffect(() => {
@@ -57,18 +58,27 @@ export default function Mantenimiento() {
   const exportOkTimer = useRef(null)
 
   useEffect(() => { setLegend(weekLegend(week)) }, [week, tick])
-  useEffect(() => { getAlertasSemana().then(setAlertas); getArchivosSemana().then(setArchivos); getPlanSugerido().then(setPlan); getTareasSugeridas().then(setTareas) }, [])
-  useEffect(() => { if (week?.start) getParadasSemana({ startISO: week.start }).then(setParadas) }, [week])
+  // Los datos salen del motor (backend) y dependen de la semana que se está viendo.
+  useEffect(() => { cargarCatalogo(); getArchivosSemana().then(setArchivos) }, [])
+  useEffect(() => {
+    if (!week?.start) return
+    getParadasSemana({ startISO: week.start }).then(setParadas)
+    getAlertasSemana(week.start).then(setAlertas)
+    getPlanSugerido(week.start).then(setPlan)
+    getTareasSugeridas(week.start).then(setTareas)
+  }, [week])
 
-  const onSubido = async () => { setArchivos(await getArchivosSemana()); setToast({ message: 'Archivo cargado' }) }
-  const onParadaCreada = async () => { if (week?.start) setParadas(await getParadasSemana({ startISO: week.start })); setToast({ message: 'Parada programada' }) }
-  const onParadaUpdated = async () => { if (week?.start) setParadas(await getParadasSemana({ startISO: week.start })); setToast({ message: 'Parada actualizada' }) }
-  const onParadaDeleted = async () => { if (week?.start) setParadas(await getParadasSemana({ startISO: week.start })); setToast({ message: 'Parada eliminada' }) }
   const refreshAll = async () => {
-    setPlan(await getPlanSugerido())
-    setTareas(await getTareasSugeridas())
-    if (week?.start) setParadas(await getParadasSemana({ startISO: week.start }))
+    if (!week?.start) return
+    setParadas(await getParadasSemana({ startISO: week.start }))
+    setPlan(await getPlanSugerido(week.start))
+    setTareas(await getTareasSugeridas(week.start))
+    setAlertas(await getAlertasSemana(week.start))
   }
+  const onSubido = async () => { setArchivos(await getArchivosSemana()); setToast({ message: 'Archivo cargado' }); refreshAll() }
+  const onParadaCreada = async () => { await refreshAll(); setToast({ message: 'Parada programada' }) }
+  const onParadaUpdated = async () => { await refreshAll(); setToast({ message: 'Parada actualizada' }) }
+  const onParadaDeleted = async () => { await refreshAll(); setToast({ message: 'Parada eliminada' }) }
 
   const handleExportSemana = async () => {
     if (!paradas || !paradas.length) {
