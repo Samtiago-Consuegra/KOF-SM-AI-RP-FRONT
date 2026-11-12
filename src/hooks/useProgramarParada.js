@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { JERARQUIA } from '../data/mock/historiaClinica.js'
+import { JERARQUIA } from '../data/catalogoMotor.js'
 
 export function useProgramarParada({ initialPrecarga = null } = {}) {
   const [titulo, setTitulo] = useState(initialPrecarga?.titulo || '')

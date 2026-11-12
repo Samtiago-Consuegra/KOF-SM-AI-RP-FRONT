@@ -4,7 +4,7 @@ import { X, Pencil, Send, AlertTriangle, Factory, Wrench, CalendarRange, Info, C
 import { enviarTareaAParada } from '../../services/mantenimientoService.js'
 import ProgramarParadaModal from './ProgramarParadaModal.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
-import { JERARQUIA } from '../../data/mock/historiaClinica.js'
+import { JERARQUIA } from '../../data/catalogoMotor.js'
 import { condicionDeParada, maquinasDeParada, textoMaquinas } from '../../utils/paradas.js'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
 
