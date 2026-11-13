@@ -17,7 +17,9 @@ function buildPages(page, totalPages) {
  * Paginación accesible con rango visible y elipsis.
  * Mantiene el foco dentro del control y deshabilita los extremos.
  */
-export default function Paginacion({ page, totalPages, from, to, total, onPageChange }) {
+export default function Paginacion({ page, totalPages, from, to, total, onPageChange, label = 'Paginación' }) {
+  if (total === 0) return null
+
   const pages = buildPages(page, Math.max(1, totalPages))
   const atStart = page <= 1
   const atEnd = page >= totalPages
@@ -39,7 +41,7 @@ export default function Paginacion({ page, totalPages, from, to, total, onPageCh
         <span className="font-semibold text-ink-700 tabular-nums">{total}</span>
       </p>
 
-      <nav aria-label="Paginación de paradas" className="flex items-center gap-1.5">
+      <nav aria-label={label} className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => go(page - 1)}
