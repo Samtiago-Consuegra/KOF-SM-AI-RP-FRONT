@@ -153,7 +153,8 @@ export default function HistoriaClinica() {
   const [ficha, setFicha] = useState(null)
   const [indicadores, setIndicadores] = useState(null)
   const [parosPorMes, setParosPorMes] = useState(null)
-  const [componentes, setComponentes] = useState(null)
+  // La tarjeta de componentes ya lee el motor; esta carga solo marca cuándo pintar la línea de tiempo.
+  const [, setComponentes] = useState(null)
   const [cargandoBase, setCargandoBase] = useState(true)
   const [cargandoIndic, setCargandoIndic] = useState(true)
   const [cargandoAbajo, setCargandoAbajo] = useState(true)
@@ -282,12 +283,8 @@ export default function HistoriaClinica() {
           />
         </div>
         <div className="lg:col-span-1">
-          <ComponentesMaquina
-            componentes={componentes}
-            loading={cargandoAbajo}
-            maquina={maquina}
-            periodoKey={resolved.seedKey}
-          />
+          {/* Lista del motor: los chips de máquina de la tarjeta no alteran el resto de la página. */}
+          <ComponentesMaquina maquina={maquina} />
         </div>
       </div>
 

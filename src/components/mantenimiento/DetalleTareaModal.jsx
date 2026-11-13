@@ -4,7 +4,9 @@ import { X, Pencil, Send, AlertTriangle, Factory, Wrench, CalendarRange, Info, C
 import { enviarTareaAParada } from '../../services/mantenimientoService.js'
 import ProgramarParadaModal from './ProgramarParadaModal.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
-import { JERARQUIA } from '../../data/mock/historiaClinica.js'
+import OrigenBadge from './OrigenBadge.jsx'
+import MotivoSugerencia from './MotivoSugerencia.jsx'
+import { JERARQUIA } from '../../data/catalogoMotor.js'
 import { condicionDeParada, maquinasDeParada, textoMaquinas } from '../../utils/paradas.js'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
 
@@ -88,6 +90,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${PRIOR_BADGE[tarea.prioridad] || 'border-neutral-200 bg-neutral-100 text-ink-700'}`}>
                 Prioridad {tarea.prioridad}
               </span>
+              <OrigenBadge origen={tarea.origen} />
               <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${paradaActual ? 'border-tertiary-200 bg-tertiary-50 text-tertiary-700' : 'border-neutral-200 bg-neutral-100 text-ink-600'}`}>
                 {paradaActual ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : null}
                 {paradaActual ? 'Parada existente' : 'Parada por crear'}
@@ -99,6 +102,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-visible p-4">
+          <MotivoSugerencia motivo={tarea.motivo} />
           <div className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <div className="space-y-3">
               <section className="rounded-xl border border-neutral-200 p-3">
@@ -139,7 +143,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                     </div>
                     <div>
                       <label className={labelCls}>Origen</label>
-                      <ReadValue>Sugerencia del sistema</ReadValue>
+                      <ReadValue>{tarea.origen}</ReadValue>
                     </div>
                   </div>
                 </div>

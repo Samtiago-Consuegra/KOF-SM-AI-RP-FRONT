@@ -2,8 +2,85 @@
 // Toda la UI accede a los datos simulados SOLO desde aquí: cuando exista backend
 // (FastAPI/Supabase + kof_engine) se reemplaza la capa de mock sin tocar componentes.
 import { MAQUINAS, PLANES, SUFIJO_LINEA, getEventos, getIndicadores, getParosPorMes, getComponentesResumen, JERARQUIA } from '../data/mock/historiaClinica'
+import * as api from '../api/motor.js'
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms))
+
+// ---------------------------------------------------------------------------------------------
+// Datos del motor (Fase 14: historia_clinica · Fase 23: historia_clinica_acr).
+// "Python calcula, la app solo muestra": aquí solo se renombran campos del motor.
+// ---------------------------------------------------------------------------------------------
+const sinDatos = (res) => !res || res.available === false || res.status === 'calculando'
+const num = (v) => (v == null || Number.isNaN(Number(v)) ? null : Number(v))
+
+let componentesMotor = null
+/** { datosHasta, porMaquina: { Maquina: [componente] } } o null si el motor aún no tiene datos. */
+export function getComponentesMotor() {
+  if (!componentesMotor) {
+    componentesMotor = api.getHistoriaClinica()
+      .then((res) => {
+        // Sin datos todavía: no se memoriza, la próxima visita vuelve a preguntar.
+        if (sinDatos(res)) { componentesMotor = null; return null }
+        const porMaquina = {}
+        for (const m of res.maquinas || []) {
+          porMaquina[m.Maquina] = (m.sistemas || []).flatMap((s) => (s.componentes || []).map((c) => ({
+            id: c.Id_componente,
+            nombre: c.Componente || c.Id_componente,
+            maquina: m.Maquina,
+            sistema: s.Sistema || 'Sin sistema',
+            eventos: num(c.Eventos) ?? 0,
+            minutosParo: num(c.Minutos_paro) ?? 0,
+            mttrMediana: num(c.MTTR_mediana_min),
+            mtbfMedianaH: num(c.MTBF_mediana_h),
+            ultimoEvento: c.Ultimo_evento || null,
+            tendencia: c.Tendencia || '—',
+            confianza: c.Confianza || '—',
+            datosSuficientes: Boolean(c.Datos_suficientes),
+          }))).sort((a, b) => b.minutosParo - a.minutosParo)
+        }
+        return { datosHasta: res.generado_con_datos_hasta || null, porMaquina }
+      })
+      .catch(() => { componentesMotor = null; return null })
+  }
+  return componentesMotor
+}
+
+const VENCIDA = 'Fecha cumplida sin cierre registrado'
+let antecedentesMotor = null
+/** Antecedentes de un componente (fallas mayores, ACR, repuesto crítico, antes/después) o null. */
+export async function getAntecedentesComponente(maquina, id) {
+  if (!antecedentesMotor) {
+    antecedentesMotor = api.getHistoriaClinicaAcr().catch(() => { antecedentesMotor = null; return null })
+  }
+  const res = await antecedentesMotor
+  if (sinDatos(res)) { antecedentesMotor = null; return null }
+  const c = (res.maquinas || []).find((m) => m.Maquina === maquina)?.componentes?.find((x) => x.Id_componente === id)
+  if (!c) return null
+  const fm = c.Fallas_mayores || {}
+  const out = {
+    fallasMayores: {
+      n: num(fm.N) ?? 0,
+      minutos: num(fm.Minutos) ?? 0,
+      lista: (fm.Lista || []).map((f) => ({
+        fecha: f.Fecha, minutos: num(f.Minutos), causaFalla: f.Causa_falla || '', causaAltoTiempo: f.Causa_alto_tiempo || '', detalle: f.Detalle || '',
+      })),
+    },
+    acr: (c.ACR || []).map((a) => ({
+      fecha: a.Fecha, falla: a.Falla || '', duracionMin: num(a.Duracion_min), causaRaiz: a.Causa_raiz || '', nota: a.Nota || '', archivo: a.Archivo || '',
+      acciones: (a.Acciones || []).map((x) => ({
+        actividad: x.Actividad || '', responsable: x.Responsable || '', fechaFin: x.Fecha_fin || null,
+        tipo: x.Tipo_accion || '', estado: x.Estado || '', vencida: x.Estado === VENCIDA,
+      })),
+    })),
+    repuestoCritico: c.Repuesto_critico ? { nivel: c.Repuesto_critico.Nivel || '', motivo: c.Repuesto_critico.Motivo || '' } : null,
+    prePost: (c.Pre_post_mantenimientos || []).map((p) => ({
+      fecha: p.Fecha, orden: p.Orden, plan: p.Plan, tarea: p.Tarea || '', horas: num(p.Horas_orden),
+      antes: num(p.Minutos_30d_antes), despues: num(p.Minutos_30d_despues), cambioPct: num(p.Cambio_pct),
+    })),
+  }
+  const vacio = !out.fallasMayores.lista.length && !out.acr.length && !out.repuestoCritico && !out.prePost.length
+  return vacio ? null : out
+}
 
 export { MAQUINAS, SUFIJO_LINEA }
 

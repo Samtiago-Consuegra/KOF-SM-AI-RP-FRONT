@@ -12,6 +12,7 @@ const Predicciones = lazy(() => import('./pages/Predicciones.jsx'))
 const Cumplimiento = lazy(() => import('./pages/Cumplimiento.jsx'))
 const HistoriaClinica = lazy(() => import('./pages/HistoriaClinica.jsx'))
 const Mantenimiento = lazy(() => import('./pages/Mantenimiento.jsx'))
+const HistorialExcel = lazy(() => import('./pages/HistorialExcel.jsx'))
 const Proximamente = lazy(() => import('./pages/Proximamente.jsx'))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage.jsx'))
 
@@ -58,7 +59,7 @@ export default function App() {
           <Route path="/cumplimiento" element={<Cumplimiento />} />
           <Route path="/historia-clinica" element={<HistoriaClinica />} />
           <Route path="/mantenimiento" element={<Mantenimiento />} />
-          <Route path="/historial" element={<Proximamente title="Historial de Excel" />} />
+          <Route path="/historial" element={<HistorialExcel />} />
           <Route path="/perfil" element={<Proximamente title="Perfil" />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
