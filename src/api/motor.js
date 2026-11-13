@@ -22,6 +22,9 @@ export const getMotorEstado = (opts) => apiGet('/motor/estado', undefined, { tra
 
 export const getArchivosMotor = () => apiGet('/motor/archivos')
 
+/** params: { tipo, desde, hasta, buscar, pagina, por_pagina } — sin caché: siempre fresco. */
+export const getHistorialArchivos = (params) => apiGet('/motor/archivos/historial', params)
+
 export function subirArchivoMotor(tipo, file) {
   const form = new FormData()
   form.append('tipo', tipo)

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getEventosPaginados } from '../../services/historiaClinicaService'
+import Paginacion from '../ui/Paginacion.jsx'
 
 const TIPOS = ['Todo', 'Fallas', 'Avisos', 'Órdenes', 'Preventivos']
+const PAGE_SIZE = 6
 
 function BadgeEvento({ tipo, orden }) {
   let clase
@@ -35,10 +37,15 @@ export default function LineaTiempo({ maquina, desde, hasta, periodoKey, loading
   const [tipo, setTipo] = useState('Todo')
   const [eventos, setEventos] = useState([])
   const [pagina, setPagina] = useState(1)
-  const [hasMore, setHasMore] = useState(false)
+  const [total, setTotal] = useState(0)
   const [cargando, setCargando] = useState(true)
 
-  // Reinicia el tipo cuando cambia máquina o periodo (la fuente cambia)
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageSafe = Math.min(pagina, totalPages)
+  const from = total === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1
+  const to = Math.min(pageSafe * PAGE_SIZE, total)
+
+  // Reinicia el tipo y la página cuando cambia máquina o periodo (la fuente cambia)
   useEffect(() => {
     if (loading) return
     setTipo('Todo')
@@ -49,23 +56,30 @@ export default function LineaTiempo({ maquina, desde, hasta, periodoKey, loading
     if (loading) return
     let alive = true
     setCargando(true)
-    getEventosPaginados({ maquina, tipo, desde, hasta, pagina: 1 }).then((res) => {
-      if (!alive) return
-      setEventos(res.items)
-      setHasMore(res.hasMore)
-      setPagina(1)
-      setCargando(false)
-    })
+    getEventosPaginados({ maquina, tipo, desde, hasta, pagina, porPagina: PAGE_SIZE })
+      .then((res) => {
+        if (!alive) return
+        setEventos(res.items)
+        setTotal(res.total)
+        setCargando(false)
+      })
+      .catch(() => {
+        if (!alive) return
+        setEventos([])
+        setTotal(0)
+        setCargando(false)
+      })
     return () => { alive = false }
-  }, [maquina, tipo, desde, hasta, loading])
+  }, [maquina, tipo, desde, hasta, pagina, loading])
 
-  const verMas = async () => {
-    setCargando(true)
-    const res = await getEventosPaginados({ maquina, tipo, desde, hasta, pagina: pagina + 1 })
-    setEventos((prev) => [...prev, ...res.items])
-    setHasMore(res.hasMore)
-    setPagina(pagina + 1)
-    setCargando(false)
+  // Si al cambiar de filtro la página actual deja de existir, vuelve a la última válida.
+  useEffect(() => {
+    if (pagina > totalPages) setPagina(totalPages)
+  }, [pagina, totalPages])
+
+  const cambiarTipo = (t) => {
+    setTipo(t)
+    setPagina(1)
   }
 
   if (loading) return <TimelineSkeleton />
@@ -81,7 +95,7 @@ export default function LineaTiempo({ maquina, desde, hasta, periodoKey, loading
               type="button"
               role="radio"
               aria-checked={tipo === t}
-              onClick={() => setTipo(t)}
+              onClick={() => cambiarTipo(t)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${
                 tipo === t ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 hover:bg-neutral-100 border border-neutral-200'
               }`}
@@ -123,17 +137,16 @@ export default function LineaTiempo({ maquina, desde, hasta, periodoKey, loading
         </div>
       )}
 
-      {hasMore && (
-        <div className="border-t border-neutral-200 p-4 text-center">
-          <button
-            type="button"
-            onClick={verMas}
-            disabled={cargando}
-            className="text-sm font-medium text-primary-600 underline-offset-4 hover:text-primary-700 hover:underline disabled:opacity-50"
-          >
-            {cargando ? 'Cargando…' : 'Ver más eventos'}
-          </button>
-        </div>
+      {total > PAGE_SIZE && (
+        <Paginacion
+          page={pageSafe}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onPageChange={setPagina}
+          label="Paginación de la línea de tiempo"
+        />
       )}
     </div>
   )

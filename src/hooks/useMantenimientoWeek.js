@@ -1,8 +1,8 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { getWeekList } from '../utils/weeks.js'
 
 export function useMantenimientoWeek() {
-  const weeks = getWeekList(52)
+  const weeks = useMemo(() => getWeekList(52), [])
   const [idx, setIdx] = useState(0)
   const week = weeks[idx]
   const goPrev = () => setIdx((i) => Math.min(i + 1, weeks.length - 1))

@@ -2,7 +2,9 @@
 // Lee los resultados del motor (backend /motor y /paradas) y los entrega con la MISMA forma que usaban
 // los datos de ejemplo de la rama main, para que los componentes de la pantalla no cambien.
 // Aquí no se calcula nada del mantenimiento: solo se filtra, se agrupa y se renombran campos.
+import { AlertTriangle, CalendarCheck, ClipboardList, FileCheck2, FileSearch, Layers } from 'lucide-react'
 import * as api from '../api/motor.js'
+import { esperarFin, vigilar } from './motorEstadoStore.js'
 import { maquinasDeParada } from '../utils/paradas.js'
 
 const MAQUINAS_LINEA = ['Llenadora', 'Empacadora', 'Paletizadora', 'Envolvedora']
@@ -64,16 +66,8 @@ async function conDatos(llamada, intentos = 40) {
   return null
 }
 
-/** Después de una escritura el backend recalcula: se espera a que termine antes de releer. */
-async function esperarMotor(maxMs = 90000) {
-  const inicio = Date.now()
-  await esperar(800)
-  while (Date.now() - inicio < maxMs) {
-    const estado = await api.getMotorEstado().catch(() => null)
-    if (!estado || !estado.en_cola) return
-    await esperar(2000)
-  }
-}
+/** Después de una escritura el backend recalcula: se espera (con el vigilante único) a que termine. */
+const esperarMotor = () => esperarFin()
 
 // ---------------------------------------------------------------------------------------------
 // Plan semanal del motor (una sola consulta por semana, compartida por calendario y tablas)
@@ -88,7 +82,30 @@ function planSemanal(semana = semanaVista, { fresco = false } = {}) {
   return planPorSemana.get(semana)
 }
 
-function invalidar() { planPorSemana.clear() }
+// Caché en memoria de lo ya mostrado: al volver a la vista se pinta al instante y se refresca en silencio.
+const cacheSemanas = new Map()
+let cacheArchivos = null
+
+function guardar(semana, campo, valor) {
+  cacheSemanas.set(semana, { ...cacheSemanas.get(semana), [campo]: valor, guardadoEn: Date.now() })
+  return valor
+}
+
+/** { paradas, alertas, plan, tareas, guardadoEn } de la semana, o null. No hace peticiones. */
+export function leerCacheSemana(startISO) {
+  return startISO ? cacheSemanas.get(semanaISO(startISO)) ?? null : null
+}
+
+/** Últimos archivos cargados, o null. No hace peticiones. */
+export function leerCacheArchivos() {
+  return cacheArchivos
+}
+
+export function invalidar() {
+  planPorSemana.clear()
+  cacheSemanas.clear()
+  cacheArchivos = null
+}
 
 function versionFusion(res) {
   return res?.versiones?.fusion || {}
@@ -144,7 +161,7 @@ export async function getAlertasSemana(startISO) {
   const todas = Array.isArray(res?.alertas) ? res.alertas : []
   // El motor ya las entrega ordenadas por prioridad del componente y marca con Mostrar=true las
   // destacadas (máximo 5, una por componente, máximo 2 del mismo tipo). Aquí solo se respetan.
-  return todas
+  return guardar(semana, 'alertas', todas
     .filter((a) => a.Mostrar === true)
     .slice(0, MAX_ALERTAS)
     .map((a, i) => ({
@@ -157,39 +174,48 @@ export async function getAlertasSemana(startISO) {
       mensaje: a.Mensaje || '',
       disparado: a.Evidencia || '',
       ...(ACCION[String(a.Enlace || '').toLowerCase()] || ACCION.componente),
-    }))
+    })))
 }
 
 // ---------------------------------------------------------------------------------------------
 // Archivos
 // ---------------------------------------------------------------------------------------------
-const ARCHIVOS = [
-  { clave: 'avisos', tipo: 'Avisos de daño', icon: 'AlertTriangle' },
-  { clave: 'ordenes', tipo: 'Órdenes de trabajo', icon: 'ClipboardList' },
-  { clave: 'plan', tipo: 'Plan preventivo', icon: 'CalendarCheck' },
+/** Única fuente de verdad de los tipos de Excel del motor (modal, tarjeta e historial). */
+export const ARCHIVOS = [
+  { clave: 'avisos', tipo: 'Avisos de daño', desc: 'Avisos de daño SAP', Icon: AlertTriangle },
+  { clave: 'ordenes', tipo: 'Órdenes de trabajo', desc: 'Órdenes de trabajo SAP', Icon: ClipboardList },
+  { clave: 'plan', tipo: 'Plan preventivo', desc: 'Plan preventivo vigente', Icon: CalendarCheck },
+  { clave: 'consolidado', tipo: 'Consolidado de fallas mayores', desc: 'Fallas mayores consolidadas', Icon: Layers },
+  { clave: 'acr', tipo: 'ACR', desc: 'Uno o varios análisis de causa raíz', Icon: FileSearch },
+  { clave: 'acr_revisado', tipo: 'ACR revisado', desc: 'Consolidado de ACR revisado', Icon: FileCheck2 },
 ]
 
 export async function getArchivosSemana() {
   const res = await api.getArchivosMotor().catch(() => null)
   const vigentes = res?.vigentes || {}
-  return ARCHIVOS.map((a) => {
-    const f = vigentes[a.clave]
+  const acrs = Array.isArray(res?.acr) ? res.acr : []
+  cacheArchivos = ARCHIVOS.map((a) => {
+    // El back ordena los ACR por fecha descendente: el primero es el último subido.
+    const f = a.clave === 'acr' ? acrs[0] : vigentes[a.clave]
     return {
       id: f?.id ? String(f.id) : `sin-${a.clave}`,
+      clave: a.clave,
       tipo: a.tipo,
-      icon: a.icon,
       nombre: f?.nombre_archivo || '',
       estado: f ? 'actual' : 'sin_actualizar',
       actualizado: f?.subido_en || null,
+      ...(a.clave === 'acr' ? { total: acrs.length } : {}),
     }
   })
+  return cacheArchivos
 }
 
 export async function subirArchivo({ tipo, file }) {
-  const clave = ARCHIVOS.find((a) => a.tipo === tipo)?.clave
+  const clave = ARCHIVOS.find((a) => a.clave === tipo || a.tipo === tipo)?.clave
   if (!clave) throw new Error('Tipo de archivo no reconocido')
   const res = await api.subirArchivoMotor(clave, file)
   invalidar()
+  vigilar() // el back encoló una corrida: Mantenimiento se entera cuando termine
   return { ok: true, archivo: res?.archivo }
 }
 
@@ -252,7 +278,7 @@ export async function getParadasSemana({ startISO }) {
     planSemanal(semanaVista),
   ])
   ultimasParadas = (Array.isArray(lista) ? lista : []).map((p) => paradaPantalla(p, resPlan))
-  return ultimasParadas
+  return guardar(semanaVista, 'paradas', ultimasParadas)
 }
 
 const esIdCatalogo = (v) => /^[A-Z]{3}-\d{3}$/.test(String(v || ''))
@@ -352,10 +378,12 @@ export async function getPlanSugerido(startISO) {
         claseOrden: String(t.Clase_orden || '').split(' · ')[0],
         parada: { id: sug.id, dia: sug.dia, fecha: sug.fecha, horaInicio: sug.horaInicio, horaFin: sug.horaFin },
         enCalendario: enviada(t),
+        origen: t.Origen || '',
+        motivo: t.Motivo || '',
       }
     })
     .sort(ordenarPorPrioridad)
-  return ultimoPlan
+  return guardar(semana, 'plan', ultimoPlan)
 }
 
 export async function enviarPlanACalendario(id, { fecha, horaInicio, horaFin, condicion = 'frio' }) {
@@ -414,9 +442,12 @@ export async function getTareasSugeridas(startISO) {
       maquina: t.Maquina,
       sistema: t.Sistema || planCodigo,
       paradaSugerida: paradaSugerida(t, paradas),
+      origen: t.Origen || '',
+      // Una orden agrupa varias operaciones: se juntan sus motivos sin repetir.
+      motivo: [...new Set(ops.map((o) => String(o.Motivo || '').trim()).filter(Boolean))].join('\n\n'),
     }
   }).sort(ordenarPorPrioridad)
-  return ultimasTareas
+  return guardar(semana, 'tareas', ultimasTareas)
 }
 
 export async function enviarTareaAParada(tareaId, { paradaId }) {

@@ -4,6 +4,8 @@ import { X, Pencil, CalendarPlus, Factory, Wrench, CalendarRange, Info, Clock } 
 import { enviarPlanACalendario } from '../../services/mantenimientoService.js'
 import { MAQUINAS } from '../../data/mock/mantenimiento.js'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
+import OrigenBadge from './OrigenBadge.jsx'
+import MotivoSugerencia from './MotivoSugerencia.jsx'
 import CondicionSelector from './CondicionSelector.jsx'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
 
@@ -81,6 +83,7 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${PRIOR_BADGE[item.prioridad] || 'border-neutral-200 bg-neutral-100 text-ink-700'}`}>
                 Prioridad {item.prioridad}
               </span>
+              <OrigenBadge origen={item.origen} />
               {item.enCalendario && (
                 <span className="inline-flex items-center rounded-full border border-tertiary-200 bg-tertiary-50 px-2 py-0.5 text-xs font-medium text-tertiary-700">
                   En calendario
@@ -93,6 +96,7 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-visible p-4">
+          <MotivoSugerencia motivo={item.motivo} />
           <div className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <div className="space-y-3">
               <section className="rounded-xl border border-neutral-200 p-3">
