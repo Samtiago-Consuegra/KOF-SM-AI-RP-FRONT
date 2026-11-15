@@ -160,6 +160,80 @@ function paradaPersonalizada(titulo, maquina, { fecha, horaInicio, horaFin, cond
     Tareas_manuales: [],
     Ejecucion: ejecucionValida(ejecucion),
   }
+  return planPorSemana.get(semana)
+}
+
+// Caché en memoria de lo ya mostrado: al volver a la vista se pinta al instante y se refresca en silencio.
+const cacheSemanas = new Map()
+let cacheArchivos = null
+
+function guardar(semana, campo, valor) {
+  cacheSemanas.set(semana, { ...cacheSemanas.get(semana), [campo]: valor, guardadoEn: Date.now() })
+  return valor
+}
+
+/** { paradas, alertas, plan, tareas, guardadoEn } de la semana, o null. No hace peticiones. */
+export function leerCacheSemana(startISO) {
+  return startISO ? cacheSemanas.get(semanaISO(startISO)) ?? null : null
+}
+
+/** Últimos archivos cargados, o null. No hace peticiones. */
+export function leerCacheArchivos() {
+  return cacheArchivos
+}
+
+export function invalidar() {
+  planPorSemana.clear()
+  cacheSemanas.clear()
+  cacheArchivos = null
+}
+
+function versionFusion(res) {
+  return res?.versiones?.fusion || {}
+}
+
+/** Paradas que propone el programador (son las mismas paradas del usuario, por Id_parada). */
+function paradasDelPlan(res) {
+  const mapa = new Map()
+  ;(versionFusion(res).paradas || []).forEach((p) => mapa.set(p.Id_parada, p))
+  return mapa
+}
+
+// Qué se muestra en las tablas de sugerencias:
+//  - NO las tareas que escribió el usuario (ya están en su parada).
+//  - NO las órdenes "por verificar" (abiertas de la semana pasada: casi siempre hechas y sin cerrar).
+//  - NO las que el usuario pospuso.
+function seMuestraEnSugerencias(t) {
+  if (t.Origen === 'Registrada por el usuario') return false
+  if (String(t.Estado || '').startsWith('Verificar')) return false
+  if (t.Estado === 'Pospuesta por el usuario') return false
+  return true
+}
+
+function paradaSugerida(t, paradas) {
+  const p = t.Id_parada ? paradas.get(t.Id_parada) : null
+  if (!p) return { existe: false, id: null, fecha: null, horaInicio: '', horaFin: '', dia: 'Por definir', maquina: t.Maquina }
+  return { existe: true, id: p.Id_parada, fecha: p.Fecha, horaInicio: p.Inicio, horaFin: p.Fin, dia: etiquetaDia(p.Fecha), maquina: t.Maquina }
+}
+
+const enviada = (t) => t.Decision === 'Enviada' || t.Estado === 'Enviada a la parada'
+const ordenarPorPrioridad = (a, b) => (RANGO_PRIORIDAD[a._prioridadMotor] ?? 9) - (RANGO_PRIORIDAD[b._prioridadMotor] ?? 9)
+
+// ---------------------------------------------------------------------------------------------
+// Alertas: solo las 5 que el motor marca como destacadas de la semana
+// ---------------------------------------------------------------------------------------------
+// Íconos y colores que ya existen en la tarjeta de alertas de main.
+const ICONO = {
+  'Ciclo': 'RefreshCcw', 'Paros en aumento': 'TrendingUp', 'Síntomas': 'Stethoscope', 'Estacionalidad': 'CalendarRange',
+  'Cumplimiento': 'ClipboardX', 'Brecha del plan': 'ShieldAlert', 'Oportunidad': 'Lightbulb',
+  'Riesgo de repuesto': 'ShieldAlert', 'Falla mayor en racha': 'TrendingUp',
+  'Después de mantenimiento mayor': 'Stethoscope', 'Acción ACR sin cierre': 'ClipboardX',
+}
+const COLOR = { 'Crítica': 'primary-500', 'Alta': 'primary-600', 'Media': 'ink-700', 'Baja': 'tertiary' }
+const ACCION = {
+  componente: { accion: 'Ver en Historia clínica', accionRuta: '/historia-clinica' },
+  plan: { accion: 'Ver plan', accionRuta: '/mantenimiento', accionTab: 'plan' },
+  calendario: { accion: 'Ver calendario', accionRuta: '/mantenimiento' },
 }
 
 const enviada = (t) => t.Decision === 'Enviada' || t.Estado === 'Enviada a la parada'
