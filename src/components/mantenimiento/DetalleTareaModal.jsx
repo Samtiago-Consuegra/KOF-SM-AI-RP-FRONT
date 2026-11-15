@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Pencil, Send, AlertTriangle, Factory, Wrench, CalendarRange, Info, Clock, CheckCircle2 } from 'lucide-react'
-import { enviarTareaAParada } from '../../services/mantenimientoService.js'
+import { enviarTareaAParada, inicioSemanaVista } from '../../services/mantenimientoService.js'
 import ProgramarParadaModal from './ProgramarParadaModal.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
+import CondicionSelector from './CondicionSelector.jsx'
+import EjecucionSelector from './EjecucionSelector.jsx'
+import EjecucionBadge from './EjecucionBadge.jsx'
+import DiaSemanaSelector from './DiaSemanaSelector.jsx'
 import OrigenBadge from './OrigenBadge.jsx'
 import MotivoSugerencia from './MotivoSugerencia.jsx'
 import { JERARQUIA } from '../../data/catalogoMotor.js'
@@ -14,15 +18,34 @@ function ReadValue({ children }) {
   return <p className="text-sm text-ink-900">{children || '—'}</p>
 }
 
+const fechaValida = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f || '') && !Number.isNaN(new Date(f + 'T00:00:00').getTime())
+
+/** Valores iniciales de la personalización: los de la parada sugerida. */
+function personalizacionInicial(tarea) {
+  const sug = tarea?.paradaSugerida || {}
+  return {
+    fecha: sug.fecha || '',
+    horaInicio: sug.horaInicio || '',
+    horaFin: sug.horaFin || '',
+    condicion: sug.condicion === 'caliente' ? 'caliente' : 'frio',
+    ejecucion: tarea?.conContratista ? 'contratista' : 'propio',
+  }
+}
+
 export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], onDone, onToast }) {
   const [edit, setEdit] = useState(false)
   const [paradaId, setParadaId] = useState(tarea?.paradaSugerida?.existe ? tarea.paradaSugerida.id : '')
   const [showDlg, setShowDlg] = useState(false)
   const [showProg, setShowProg] = useState(false)
+  const [pers, setPers] = useState(() => personalizacionInicial(tarea))
+  const [err, setErr] = useState('')
+  const cambiar = (campo) => (valor) => setPers((p) => ({ ...p, [campo]: valor }))
 
   useEffect(() => {
     if (!open) return
     setEdit(false)
+    setPers(personalizacionInicial(tarea))
+    setErr('')
     setParadaId(tarea?.paradaSugerida?.existe ? tarea.paradaSugerida.id : '')
     setShowDlg(false)
     setShowProg(false)
@@ -48,6 +71,15 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
       : ''
 
   const enviar = async () => {
+    setErr('')
+    // Personalizando sin elegir una parada existente: se usan el día, horario, condición y ejecución elegidos.
+    if (edit && !paradaId) {
+      if (!fechaValida(pers.fecha)) { setErr('Elige un día válido para la parada'); return }
+      if (!pers.horaInicio || !pers.horaFin) { setErr('Requiere hora de inicio y fin válidas'); return }
+      if (pers.horaFin <= pers.horaInicio) { setErr('La hora de fin debe ser posterior a la hora de inicio'); return }
+      await enviarTareaAParada(tarea.id, { personalizada: pers })
+      onClose(); onDone?.(); onToast?.('Tarea enviada a la parada'); return
+    }
     if (!tarea.paradaSugerida?.existe && !paradaId) {
       setShowDlg(true)
       return
@@ -73,7 +105,9 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
       <style>{`
         @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .modal-anim, .modal-fade { animation: none !important; } }
+        @keyframes edit-reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        .edit-reveal { animation: edit-reveal 220ms cubic-bezier(0.22,1,0.36,1) both; }
+        @media (prefers-reduced-motion: reduce) { .modal-anim, .modal-fade, .edit-reveal { animation: none !important; } }
       `}</style>
       <div className="modal-fade absolute inset-0 bg-ink-900/60 backdrop-blur-sm" style={{ animation: 'fade-in 200ms ease-out' }} onClick={onClose} />
       <div
@@ -96,6 +130,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                 {paradaActual ? 'Parada existente' : 'Parada por crear'}
               </span>
               {condicionActual && <CondicionParadaBadge condicion={condicionActual} />}
+              <EjecucionBadge ejecucion={pers.ejecucion} />
             </div>
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="h-8 w-8 shrink-0 grid place-items-center rounded-lg hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><X className="size-4" /></button>
@@ -172,17 +207,46 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                   )}
                   <div>
                     <label className={labelCls}>Día</label>
-                    <ReadValue>{sugerida?.dia || paradaActual?.fecha || 'Por definir'}</ReadValue>
+                    {edit ? (
+                      <DiaSemanaSelector className="edit-reveal" inicioISO={inicioSemanaVista()} value={pers.fecha} onChange={cambiar('fecha')} sugerida={sugerida?.fecha} />
+                    ) : <ReadValue>{sugerida?.dia || paradaActual?.fecha || 'Por definir'}</ReadValue>}
                   </div>
-                  <div>
-                    <label className={labelCls}>Horario</label>
-                    {horario ? (
-                      <p className="inline-flex items-center gap-1.5 text-sm text-ink-900">
-                        <Clock className="size-3.5 text-ink-400" aria-hidden="true" />
-                        {horario}
-                      </p>
-                    ) : <ReadValue>Por definir</ReadValue>}
-                  </div>
+                  {edit ? (
+                    <div className="edit-reveal grid grid-cols-2 gap-2">
+                      <div>
+                        <label className={labelCls} htmlFor="tarea-hora-inicio">Hora de inicio</label>
+                        <input id="tarea-hora-inicio" type="time" value={pers.horaInicio} onChange={(e) => cambiar('horaInicio')(e.target.value)} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls} htmlFor="tarea-hora-fin">Hora de fin</label>
+                        <input id="tarea-hora-fin" type="time" value={pers.horaFin} onChange={(e) => cambiar('horaFin')(e.target.value)} className={inputCls} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className={labelCls}>Horario</label>
+                      {horario ? (
+                        <p className="inline-flex items-center gap-1.5 text-sm text-ink-900">
+                          <Clock className="size-3.5 text-ink-400" aria-hidden="true" />
+                          {horario}
+                        </p>
+                      ) : <ReadValue>Por definir</ReadValue>}
+                    </div>
+                  )}
+                  {edit ? (
+                    <>
+                      <div className="edit-reveal">
+                        <span className={labelCls}>Condición de la parada</span>
+                        <CondicionSelector value={pers.condicion} onChange={cambiar('condicion')} />
+                      </div>
+                      <EjecucionSelector className="edit-reveal" value={pers.ejecucion} onChange={cambiar('ejecucion')} />
+                    </>
+                  ) : (
+                    <div>
+                      <span className={labelCls}>Ejecución</span>
+                      <EjecucionBadge ejecucion={pers.ejecucion} />
+                    </div>
+                  )}
                   {(paradaActual || sugerida?.maquina) && (
                     <div>
                       <label className={labelCls}>Máquina(s)</label>
@@ -191,7 +255,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                   )}
                   {edit && (
                     <div>
-                      <label className={labelCls} htmlFor="tarea-parada">Enviar a parada</label>
+                      <label className={labelCls} htmlFor="tarea-parada">O enviar a una parada existente</label>
                       <select id="tarea-parada" value={paradaId} onChange={(e) => setParadaId(e.target.value)} className={inputCls}>
                         <option value="">Seleccionar parada</option>
                         {disponibles.map((p) => {
@@ -206,12 +270,13 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                       {!disponibles.length && <p className="mt-1 text-xs text-ink-500">No hay paradas para esta máquina. Puedes crear una.</p>}
                     </div>
                   )}
+                  {err && <p className="text-xs text-primary-600" role="alert">{err}</p>}
                 </div>
               </section>
 
               <div className="flex gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3 text-xs text-ink-500">
                 <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <p>La tarea se agregará a la parada seleccionada. Si no existe, podrás crearla con el formulario de programación.</p>
+                <p>La tarea se agregará a la parada seleccionada. Al personalizar, si cambias el día, el horario o la ejecución se creará una parada nueva con esos datos.</p>
               </div>
             </aside>
           </div>
@@ -276,7 +341,9 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           const comp = (JERARQUIA[tarea.maquina] || []).flatMap(s => s.componentes || []).find(c => c.nombre === tarea.componente)
           return {
             titulo: tarea.tarea,
-            fecha: new Date().toISOString().slice(0, 10),
+            fecha: pers.fecha || new Date().toISOString().slice(0, 10),
+            condicion: pers.condicion,
+            ejecucion: pers.ejecucion,
             horaInicio: '08:00',
             horaFin: '12:00',
             maquina: tarea.maquina,

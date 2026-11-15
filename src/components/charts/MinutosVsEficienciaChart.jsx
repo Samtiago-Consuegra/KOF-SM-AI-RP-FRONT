@@ -1,4 +1,5 @@
 import { CartesianGrid, Legend, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from 'recharts'
+import { chartAnimation } from '../../utils/motion.js'
 import ChartCard, { TooltipBox } from './ChartCard.jsx'
 import { CRITICAL_COLOR, fmtInt, gridProps, maxBy, tickStyle } from './edaTheme.jsx'
 
@@ -34,7 +35,7 @@ export default function MinutosVsEficienciaChart({ points, className }) {
             content={<TooltipBox formatter={(p) => `${p.name}: ${fmtPts(p.value)}`} />}
           />
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-          <Scatter name="Minutos vs puntos de eficiencia" data={data} fill={CRITICAL_COLOR} isAnimationActive={data.length < 800} />
+          <Scatter name="Minutos vs puntos de eficiencia" data={data} fill={CRITICAL_COLOR} {...chartAnimation()} isAnimationActive={data.length < 800 && chartAnimation().isAnimationActive} />
         </ScatterChart>
       </ResponsiveContainer>
     </ChartCard>

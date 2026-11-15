@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis } from 'recharts'
+import { chartAnimation } from '../../utils/motion.js'
 import { TooltipBox } from './ChartCard.jsx'
 import { WrapTick, gridProps, tickStyle } from './edaTheme.jsx'
 
@@ -27,7 +28,7 @@ export default function HorizontalBars({ width = 0, height = 0, rows, labelKey, 
         cursor={{ fill: '#f8f9fa' }}
         content={<TooltipBox formatter={(p) => `${withMachine ? `${p.payload.machine} · ` : ''}${p.name}: ${format(p.value)}`} />}
       />
-      <Bar dataKey={dataKey} name={name}>
+      <Bar dataKey={dataKey} name={name} {...chartAnimation()}>
         {rows.map((r, i) => <Cell key={`${r[labelKey]}-${i}`} fill={colorOf(r)} fillOpacity={0.9} />)}
       </Bar>
     </BarChart>

@@ -3,6 +3,7 @@ import Modal from '../ui/Modal.jsx'
 import EstadoBadge from './EstadoBadge.jsx'
 import AlertaCumplidaParcial from './AlertaCumplidaParcial.jsx'
 import LeyendaReprogramada from './LeyendaReprogramada.jsx'
+import EjecucionBadge from '../mantenimiento/EjecucionBadge.jsx'
 import { formatFechaHabil } from '../../utils/weeks.js'
 
 function duracionReal(parada) {
@@ -96,6 +97,10 @@ export default function DetalleParadaModal({ open, onClose, parada }) {
             {parada.finReal ? formatFechaHabil(parada.finReal) : 'Sin cerrar'}
           </p>
           <p className="text-xs text-ink-500">Duración real: {duracionReal(parada)}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 sm:col-span-2">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-ink-500">Ejecución</p>
+          <div className="mt-1"><EjecucionBadge ejecucion={parada.ejecucion} /></div>
         </div>
       </div>
 

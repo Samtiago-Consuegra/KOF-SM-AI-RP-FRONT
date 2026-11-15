@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Maximize2 } from 'lucide-react'
 import Card from '../ui/Card.jsx'
 import Modal from '../ui/Modal.jsx'
+import useInView from '../../hooks/useInView.js'
+import { staggerStyle } from '../../utils/motion.js'
 
 export default function ChartCard({
   title,
@@ -14,6 +16,8 @@ export default function ChartCard({
   modalBodyClassName = 'h-[70vh]',
 }) {
   const [open, setOpen] = useState(false)
+  const [ref, revealIndex] = useInView()
+  const reveal = revealIndex === null ? 'opacity-0' : 'kof-fade-up'
 
   const activate = (e) => {
     if (e.type === 'keydown') {
@@ -25,7 +29,11 @@ export default function ChartCard({
 
   return (
     <>
-      <Card className={`p-5 flex flex-col ${className}`}>
+      <Card
+        ref={ref}
+        className={`p-5 flex flex-col ${reveal} ${className}`}
+        style={revealIndex ? staggerStyle(revealIndex, 50) : undefined}
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-base font-bold text-ink-900">{title}</h3>
@@ -42,7 +50,7 @@ export default function ChartCard({
           aria-label={`Ampliar ${title}`}
           className="group relative mt-4 flex-1 min-h-0 cursor-zoom-in"
         >
-          <div className={bodyClassName}>{children}</div>
+          <div className={bodyClassName}>{revealIndex !== null && children}</div>
           <span className="pointer-events-none absolute right-3 top-2 hidden items-center gap-1 rounded-lg bg-ink-900/80 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 sm:flex">
             <Maximize2 className="size-3" /> Ampliar
           </span>

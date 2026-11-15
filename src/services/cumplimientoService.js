@@ -1,5 +1,6 @@
 import { PARADAS, MAQUINAS_CRITICAS } from '../data/mock/cumplimiento.js'
 import { siguienteDiaHabil } from '../utils/weeks.js'
+import { ejecucionValida } from '../utils/paradas.js'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -35,7 +36,7 @@ export function estadoEfectivo(parada, now = new Date()) {
 }
 
 function serialize(parada) {
-  return { ...clone(parada), estado: estadoEfectivo(parada) }
+  return { ...clone(parada), estado: estadoEfectivo(parada), ejecucion: ejecucionValida(parada.ejecucion) }
 }
 
 function findMutable(paradaId) {
@@ -249,6 +250,7 @@ export async function cumplirYReprogramarRestantes(paradaId, payload = {}) {
     titulo: `${parada.titulo} (tareas restantes)`,
     ordenSap: parada.ordenSap,
     tipo: parada.tipo,
+    ejecucion: ejecucionValida(parada.ejecucion),
     estadoBase: 'Pendiente',
     inicio: nuevoInicio,
     finProg: nuevoFin,

@@ -26,6 +26,7 @@ import { useEdaSummary } from '../hooks/useEdaSummary.js'
 import { fmtDateShort, fmtNumber, fromISODate, startOfDay } from '../utils/format.js'
 import { defaultTimeRange, resolveTimeRange } from '../utils/period.js'
 import { useToast } from '../context/ToastContext.jsx'
+import { staggerStyle } from '../utils/motion.js'
 
 // La pantalla /mantenimiento todavía no está conectada: esta vista previa sigue
 // siendo un ejemplo. En cuanto exista, se reemplaza por GET /mantenimiento.
@@ -39,10 +40,10 @@ const EMPTY_PREVIEW = { loading: true, available: false, rows: [], message: null
 function DashboardSkeleton() {
   return (
     <>
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4 kof-fade">
         {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px]" />)}
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] items-start kof-fade">
         <div className="grid gap-4 md:grid-cols-2">
           {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <Skeleton key={i} className="h-[330px]" />)}
         </div>
@@ -122,6 +123,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto">
+      <div className="kof-fade-up">
       <PageHeader title="Dashboard (EDA)">
         <UploadExcelButton onUploaded={setLastUpload} onFinished={afterUpload} />
         <button
@@ -135,14 +137,15 @@ export default function Dashboard() {
           <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </PageHeader>
+      </div>
 
-      <p className="-mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
+      <p style={staggerStyle(1, 40)} className="kof-fade-up -mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-500">
         <span className="inline-flex items-center gap-1.5"><Clock3 className="size-4" />Datos de {resolved.label}</span>
         <span className="inline-flex items-center gap-1.5 font-mono text-xs text-ink-600"><FileSpreadsheet className="size-4 text-tertiary-600" />{fileLabel}</span>
       </p>
 
       {/* Filtros */}
-      <Card className="p-4 flex flex-col lg:flex-row lg:items-end gap-3 lg:gap-4">
+      <Card style={staggerStyle(2, 40)} className="kof-fade-up p-4 flex flex-col lg:flex-row lg:items-end gap-3 lg:gap-4">
         <MachineFilter
           label="Máquinas"
           variant="toolbar"
@@ -186,8 +189,12 @@ export default function Dashboard() {
           {/* Indicadores — siguen el filtro de máquinas */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
             <StatCard
+              className="kof-fade-up"
+              style={staggerStyle(0, 50, 120)}
+              countUp
+              format={fmtNumber}
               label="Registros de paro"
-              value={fmtNumber(kpis.events_count)}
+              value={kpis.events_count}
               icon={AlertTriangle}
               tone="red"
               caption={delta === null ? (
@@ -200,13 +207,20 @@ export default function Dashboard() {
               )}
             />
             <StatCard
+              className="kof-fade-up"
+              style={staggerStyle(1, 50, 120)}
+              countUp
+              format={fmtNumber}
               label="Minutos de paro"
-              value={fmtNumber(kpis.stop_minutes)}
+              value={kpis.stop_minutes}
               unit="min"
               icon={Timer}
               caption={`${fmtNumber(kpis.stop_hours, 1)} h de producción detenida`}
             />
             <StatCard
+              className="kof-fade-up"
+              style={staggerStyle(2, 50, 120)}
+              countUp
               label="Equipos analizados"
               value={kpis.machines_count}
               icon={Cpu}
@@ -214,8 +228,13 @@ export default function Dashboard() {
               caption={machineFilter === 'criticas' ? 'Máquinas críticas de la línea' : machineFilter === 'todas' ? 'Toda la línea monitoreada' : machineFilter}
             />
             <StatCard
+              className="kof-fade-up"
+              style={staggerStyle(3, 50, 120)}
+              countUp
+              decimals={1}
+              format={(v) => fmtNumber(v, 1)}
               label="MTBF medio (críticas)"
-              value={kpis.mtbf_critical_hours === null ? 'N/A' : fmtNumber(kpis.mtbf_critical_hours, 1)}
+              value={kpis.mtbf_critical_hours === null ? 'N/A' : kpis.mtbf_critical_hours}
               unit={kpis.mtbf_critical_hours === null ? '' : 'h'}
               icon={Activity}
               tone="amber"
@@ -246,7 +265,7 @@ export default function Dashboard() {
             <MtbfTable rows={ctx.mtbf} className="md:col-span-2" />
           </div>
 
-            <aside className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 xl:sticky xl:top-24">
+            <aside className="kof-fade grid gap-4 sm:grid-cols-2 xl:grid-cols-1 xl:sticky xl:top-24">
               {/* Vista previa: predicciones */}
               <Card className="p-5 flex flex-col gap-4">
                 <div className="flex items-center gap-2">

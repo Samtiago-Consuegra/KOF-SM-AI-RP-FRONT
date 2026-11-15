@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Pencil, Trash2, Factory } from 'lucide-react'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
+import EjecucionBadge from './EjecucionBadge.jsx'
 import { eliminarParada } from '../../services/mantenimientoService.js'
 import { textoMaquinas } from '../../utils/paradas.js'
 
@@ -80,6 +81,10 @@ export default function DetalleParadaModal({ open, onClose, parada, onEdit, onDe
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div><p className="text-xs text-ink-500">Fecha</p><p className="text-ink-900 capitalize">{fechaFull}</p></div>
             <div><p className="text-xs text-ink-500">Horario</p><p className="text-ink-900">{parada.horaInicio} – {parada.horaFin} {duracion ? `(${duracion})` : ''}</p></div>
+            <div className="col-span-2">
+              <p className="text-xs text-ink-500">Ejecución</p>
+              <div className="mt-0.5"><EjecucionBadge ejecucion={parada.ejecucion} /></div>
+            </div>
             <div className="col-span-2">
               <p className="text-xs text-ink-500">Máquinas</p>
               <p className="flex items-center gap-1.5 text-ink-900"><Factory className="size-3.5 text-ink-400" aria-hidden="true" />{textoMaquinas(parada) || 'Sin máquina'}</p>

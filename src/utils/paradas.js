@@ -19,6 +19,13 @@ export const CONDICION_PARADA = {
 
 export const CONDICION_OPTIONS = [CONDICION_PARADA.frio, CONDICION_PARADA.caliente]
 
+export const EJECUCION_PARADA = {
+  propio: { value: 'propio', label: 'Equipo propio', badge: 'border-tertiary-200 bg-tertiary-50 text-tertiary-700' },
+  contratista: { value: 'contratista', label: 'Contratista', badge: 'border-ink-900 bg-ink-900 text-white' },
+}
+export const EJECUCION_OPCIONES = [EJECUCION_PARADA.propio, EJECUCION_PARADA.contratista]
+export const ejecucionValida = (v) => (v === 'contratista' ? 'contratista' : 'propio')
+
 export function condicionDeParada(parada) {
   return CONDICION_PARADA[parada?.condicion] || null
 }

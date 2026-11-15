@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Tooltip, XAxis, YAxis } from 'recharts'
+import { chartAnimation } from '../../utils/motion.js'
 import { TooltipBox } from './ChartCard.jsx'
 import { AngledTick, CRITICAL_COLOR, OTHER_COLOR, gridProps, tickStyle } from './edaTheme.jsx'
 
@@ -22,7 +23,7 @@ export default function MachineBars({ width = 0, height = 0, data, dataKey, name
       <YAxis tick={tickStyle} allowDecimals={false} />
       <Tooltip cursor={{ fill: '#f8f9fa' }} content={<TooltipBox formatter={(p) => `${p.name}: ${format(p.value)}`} />} />
       <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} />
-      <Bar dataKey={dataKey} name={name}>
+      <Bar dataKey={dataKey} name={name} {...chartAnimation()}>
         {data.map((m) => (
           <Cell key={m.machine} fill={m.critical ? CRITICAL_COLOR : OTHER_COLOR} fillOpacity={0.9} />
         ))}
