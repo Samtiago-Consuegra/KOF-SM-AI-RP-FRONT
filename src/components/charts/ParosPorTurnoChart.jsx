@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { chartAnimation } from '../../utils/motion.js'
 import ChartCard, { TooltipBox } from './ChartCard.jsx'
 import { colorByMachine, fmtInt, gridProps, tickStyle } from './edaTheme.jsx'
 
@@ -37,7 +38,7 @@ export default function ParosPorTurnoChart({ points, className }) {
           <Tooltip cursor={{ fill: '#f8f9fa' }} content={<TooltipBox formatter={(p) => `${p.name}: ${fmtInt(p.value)}`} />} />
           <Legend iconType="square" iconSize={machines.length > 6 ? 8 : 14} wrapperStyle={{ fontSize: machines.length > 6 ? 10 : 12 }} />
           {machines.map((m) => (
-            <Bar key={m} dataKey={m} name={m} fill={colors[m]} fillOpacity={0.9} />
+            <Bar key={m} dataKey={m} name={m} fill={colors[m]} fillOpacity={0.9} {...chartAnimation()} />
           ))}
         </BarChart>
       </ResponsiveContainer>

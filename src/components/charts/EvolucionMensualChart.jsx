@@ -1,4 +1,5 @@
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { chartAnimation } from '../../utils/motion.js'
 import ChartCard, { TooltipBox } from './ChartCard.jsx'
 import { colorByMachine, fmtInt, gridProps, tickStyle } from './edaTheme.jsx'
 
@@ -45,7 +46,7 @@ export default function EvolucionMensualChart({ points, className }) {
           <Tooltip content={<TooltipBox formatter={(p) => `${p.name}: ${fmtInt(p.value)}`} />} labelFormatter={fmtPeriod} />
           <Legend iconSize={machines.length > 6 ? 8 : 14} wrapperStyle={{ fontSize: machines.length > 6 ? 10 : 12 }} />
           {machines.map((m) => (
-            <Line key={m} type="monotone" dataKey={m} name={m} stroke={colors[m]} strokeWidth={2} dot={{ r: 2 }} />
+            <Line key={m} type="monotone" dataKey={m} name={m} stroke={colors[m]} strokeWidth={2} dot={{ r: 2 }} {...chartAnimation()} />
           ))}
         </LineChart>
       </ResponsiveContainer>

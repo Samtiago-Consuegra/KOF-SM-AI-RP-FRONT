@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Pencil, CalendarPlus, Factory, Wrench, CalendarRange, Info, Clock } from 'lucide-react'
-import { enviarPlanACalendario } from '../../services/mantenimientoService.js'
+import { enviarPlanACalendario, inicioSemanaVista } from '../../services/mantenimientoService.js'
 import { MAQUINAS } from '../../data/mock/mantenimiento.js'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
 import OrigenBadge from './OrigenBadge.jsx'
 import MotivoSugerencia from './MotivoSugerencia.jsx'
 import CondicionSelector from './CondicionSelector.jsx'
+import EjecucionSelector from './EjecucionSelector.jsx'
+import EjecucionBadge from './EjecucionBadge.jsx'
+import DiaSemanaSelector from './DiaSemanaSelector.jsx'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
 
 function ReadValue({ children }) {
   return <p className="text-sm text-ink-900">{children}</p>
 }
+
+const condicionInicial = (item) => (item?.parada?.condicion === 'caliente' ? 'caliente' : 'frio')
+const ejecucionInicial = (item) => (item?.conContratista ? 'contratista' : 'propio')
+const fechaValida = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f || '') && !Number.isNaN(new Date(f + 'T00:00:00').getTime())
 
 export default function DetallePlanModal({ open, onClose, item, onDone, onToast }) {
   const [edit, setEdit] = useState(false)
@@ -21,7 +28,9 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
   const [horaInicio, setHoraInicio] = useState(item?.parada?.horaInicio || '')
   const [horaFin, setHoraFin] = useState(item?.parada?.horaFin || '')
   const [tarea, setTarea] = useState(item?.tarea || '')
-  const [condicion, setCondicion] = useState('frio')
+  const [condicion, setCondicion] = useState(condicionInicial(item))
+  const [ejecucion, setEjecucion] = useState(ejecucionInicial(item))
+  const [fecha, setFecha] = useState(item?.parada?.fecha || '')
   const [err, setErr] = useState('')
 
   useEffect(() => {
@@ -33,7 +42,9 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
     setHoraInicio(item?.parada?.horaInicio || '')
     setHoraFin(item?.parada?.horaFin || '')
     setTarea(item?.tarea || '')
-    setCondicion('frio')
+    setCondicion(condicionInicial(item))
+    setEjecucion(ejecucionInicial(item))
+    setFecha(item?.parada?.fecha || '')
     setErr('')
   }, [open, item])
 
@@ -48,14 +59,10 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
 
   const enviar = async () => {
     setErr('')
+    if (!fechaValida(fecha)) { setEdit(true); setErr('Elige un día válido para la parada'); return }
     if (!horaInicio || !horaFin) { setErr('Requiere hora de inicio y fin válidas'); return }
     if (horaFin <= horaInicio) { setErr('La hora de fin debe ser posterior a la hora de inicio'); return }
-    await enviarPlanACalendario(item.id, {
-      fecha: new Date().toISOString().slice(0, 10),
-      horaInicio,
-      horaFin,
-      condicion,
-    })
+    await enviarPlanACalendario(item.id, { fecha, horaInicio, horaFin, condicion, ejecucion })
     onClose()
     onDone?.()
     onToast?.('Enviado a calendario')
@@ -66,7 +73,9 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
       <style>{`
         @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .modal-anim, .modal-fade { animation: none !important; } }
+        @keyframes edit-reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        .edit-reveal { animation: edit-reveal 220ms cubic-bezier(0.22,1,0.36,1) both; }
+        @media (prefers-reduced-motion: reduce) { .modal-anim, .modal-fade, .edit-reveal { animation: none !important; } }
       `}</style>
       <div className="modal-fade absolute inset-0 bg-ink-900/60 backdrop-blur-sm" style={{ animation: 'fade-in 200ms ease-out' }} onClick={onClose} />
       <div
@@ -90,6 +99,7 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
                 </span>
               )}
               <CondicionParadaBadge condicion={condicion} />
+              <EjecucionBadge ejecucion={ejecucion} />
             </div>
           </div>
           <button onClick={onClose} aria-label="Cerrar" className="h-8 w-8 shrink-0 grid place-items-center rounded-lg hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><X className="size-4" /></button>
@@ -163,7 +173,9 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
                 <div className="space-y-2">
                   <div>
                     <label className={labelCls}>Día</label>
-                    <ReadValue>{item.parada?.dia || 'Por definir'}</ReadValue>
+                    {edit ? (
+                      <DiaSemanaSelector key="dia-edit" className="edit-reveal" inicioISO={inicioSemanaVista()} value={fecha} onChange={setFecha} sugerida={item.parada?.fecha} />
+                    ) : <ReadValue>{item.parada?.dia || 'Por definir'}</ReadValue>}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -192,18 +204,26 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
                   <div>
                     <span className={labelCls}>Condición de la parada</span>
                     {edit ? (
-                      <CondicionSelector value={condicion} onChange={setCondicion} />
+                      <CondicionSelector className="edit-reveal" value={condicion} onChange={setCondicion} />
                     ) : (
                       <CondicionParadaBadge condicion={condicion} />
                     )}
                   </div>
+                  {edit ? (
+                    <EjecucionSelector className="edit-reveal" value={ejecucion} onChange={setEjecucion} />
+                  ) : (
+                    <div>
+                      <span className={labelCls}>Ejecución</span>
+                      <EjecucionBadge ejecucion={ejecucion} />
+                    </div>
+                  )}
                   {err && <p className="text-xs text-primary-600" role="alert">{err}</p>}
                 </div>
               </section>
 
               <div className="flex gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3 text-xs text-ink-500">
                 <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <p>Al enviar se creará una parada con esta condición y horario. Podrás verla en el calendario semanal.</p>
+                <p>Si cambias el día, el horario o la ejecución se creará una parada nueva con esos datos; si no, la tarea irá a la parada sugerida. Podrás verla en el calendario semanal.</p>
               </div>
             </aside>
           </div>

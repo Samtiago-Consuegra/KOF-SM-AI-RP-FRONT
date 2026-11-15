@@ -5,7 +5,7 @@
 import { AlertTriangle, CalendarCheck, ClipboardList, FileCheck2, FileSearch, Layers } from 'lucide-react'
 import * as api from '../api/motor.js'
 import { esperarFin, vigilar } from './motorEstadoStore.js'
-import { maquinasDeParada } from '../utils/paradas.js'
+import { ejecucionValida, maquinasDeParada } from '../utils/paradas.js'
 
 const MAQUINAS_LINEA = ['Llenadora', 'Empacadora', 'Paletizadora', 'Envolvedora']
 const TODA_LA_LINEA = 'Toda la línea'
@@ -131,8 +131,35 @@ function seMuestraEnSugerencias(t) {
 
 function paradaSugerida(t, paradas) {
   const p = t.Id_parada ? paradas.get(t.Id_parada) : null
-  if (!p) return { existe: false, id: null, fecha: null, horaInicio: '', horaFin: '', dia: 'Por definir', maquina: t.Maquina }
-  return { existe: true, id: p.Id_parada, fecha: p.Fecha, horaInicio: p.Inicio, horaFin: p.Fin, dia: etiquetaDia(p.Fecha), maquina: t.Maquina }
+  if (!p) return { existe: false, id: null, fecha: null, horaInicio: '', horaFin: '', dia: 'Por definir', maquina: t.Maquina, condicion: 'frio', ejecucion: 'propio' }
+  // paradas.json no lleva Ejecucion: se toma de las paradas de la semana ya cargadas (sin otra petición).
+  const ejecucion = ejecucionValida(ultimasParadas.find((u) => u.id === p.Id_parada)?.ejecucion)
+  return { existe: true, id: p.Id_parada, fecha: p.Fecha, horaInicio: p.Inicio, horaFin: p.Fin, dia: etiquetaDia(p.Fecha), maquina: t.Maquina,
+    condicion: p.Modalidad === 'Caliente' ? 'caliente' : 'frio', ejecucion }
+}
+
+/** ¿Lo elegido al personalizar difiere de la parada sugerida en día, horario o ejecución? */
+function cambioRespectoSugerida(sug, { fecha, horaInicio, horaFin, ejecucion }) {
+  return fecha !== sug.fecha || horaInicio !== sug.horaInicio || horaFin !== sug.horaFin
+    || ejecucionValida(ejecucion) !== ejecucionValida(sug.ejecucion)
+}
+
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
+const fechaValida = (f) => FECHA_RE.test(String(f || '')) && new Date(f + 'T00:00:00Z').toISOString().slice(0, 10) === f
+
+/** Cuerpo de POST /paradas para una parada creada desde una sugerencia personalizada. */
+function paradaPersonalizada(titulo, maquina, { fecha, horaInicio, horaFin, condicion, ejecucion }) {
+  if (!fechaValida(fecha)) throw new Error('Fecha inválida')
+  return {
+    Titulo: titulo,
+    Modalidad: condicion === 'caliente' ? 'Caliente' : 'Frío',
+    Fecha: fecha,
+    Inicio: horaInicio,
+    Fin: horaFin,
+    Maquinas: [maquina],
+    Tareas_manuales: [],
+    Ejecucion: ejecucionValida(ejecucion),
+  }
 }
 
 const enviada = (t) => t.Decision === 'Enviada' || t.Estado === 'Enviada a la parada'
@@ -263,12 +290,21 @@ function paradaPantalla(p, resPlan) {
     titulo: p.titulo,
     horaInicio: p.inicio,
     horaFin: p.fin,
+    ejecucion: ejecucionValida(p.ejecucion),
     tareas: tareasDetalle.map((t) => t.descripcion),
     tareasDetalle,
   }
 }
 
 let ultimasParadas = []
+
+/** Lunes (AAAA-MM-DD) de la semana que se está viendo. No hace peticiones. */
+export function inicioSemanaVista() {
+  const [anio, sem] = semanaVista.split('-W').map(Number)
+  const d = new Date(Date.UTC(anio, 0, 4))
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() || 7) - 1) + (sem - 1) * 7)
+  return d.toISOString().slice(0, 10)
+}
 
 export async function getParadasSemana({ startISO }) {
   if (!startISO) return []
@@ -300,6 +336,7 @@ function paradaAlBackend(datos, idParada = null) {
     Inicio: datos.horaInicio,
     Fin: datos.horaFin,
     Maquinas: maquinas,
+    Ejecucion: ejecucionValida(datos.ejecucion),
     Tareas_manuales: manuales.map((t) => ({
       Maquina: t.maquina || maquinas[0],
       Sistema: t.sistema || null,
@@ -376,7 +413,9 @@ export async function getPlanSugerido(startISO) {
         componenteId: t.Id_componente || '',
         tarea: t.Tarea,
         claseOrden: String(t.Clase_orden || '').split(' · ')[0],
-        parada: { id: sug.id, dia: sug.dia, fecha: sug.fecha, horaInicio: sug.horaInicio, horaFin: sug.horaFin },
+        parada: { id: sug.id, dia: sug.dia, fecha: sug.fecha, horaInicio: sug.horaInicio, horaFin: sug.horaFin,
+          condicion: sug.condicion, ejecucion: sug.ejecucion },
+        conContratista: t.Con_contratista === true,
         enCalendario: enviada(t),
         origen: t.Origen || '',
         motivo: t.Motivo || '',
@@ -386,22 +425,14 @@ export async function getPlanSugerido(startISO) {
   return guardar(semana, 'plan', ultimoPlan)
 }
 
-export async function enviarPlanACalendario(id, { fecha, horaInicio, horaFin, condicion = 'frio' }) {
+export async function enviarPlanACalendario(id, { fecha, horaInicio, horaFin, condicion = 'frio', ejecucion = 'propio' }) {
   const item = ultimoPlan.find((p) => p.id === id)
   if (!item) return { ok: false }
   let idParada = item.parada?.id || null
-  // Sin parada sugerida (o con otro horario elegido al personalizar): se crea una parada con ese horario.
-  const cambioHorario = item.parada?.id && (horaInicio !== item.parada.horaInicio || horaFin !== item.parada.horaFin)
-  if (!idParada || cambioHorario) {
-    const nueva = await api.crearParada({
-      Titulo: item.tarea,
-      Modalidad: condicion === 'caliente' ? 'Caliente' : 'Frío',
-      Fecha: item.parada?.fecha || fecha,
-      Inicio: horaInicio,
-      Fin: horaFin,
-      Maquinas: [item.maquina],
-      Tareas_manuales: [],
-    })
+  // Sin parada sugerida, o con otro día, horario o ejecución elegidos al personalizar: se crea una parada nueva.
+  const elegido = { fecha: fecha || item.parada?.fecha, horaInicio, horaFin, condicion, ejecucion }
+  if (!idParada || cambioRespectoSugerida(item.parada, elegido)) {
+    const nueva = await api.crearParada(paradaPersonalizada(item.tarea, item.maquina, elegido))
     idParada = nueva?.id_parada
   }
   await api.enviarDecision({ Id_tarea: id, Decision: 'Enviada', Id_parada: idParada, semana: semanaVista })
@@ -442,6 +473,7 @@ export async function getTareasSugeridas(startISO) {
       maquina: t.Maquina,
       sistema: t.Sistema || planCodigo,
       paradaSugerida: paradaSugerida(t, paradas),
+      conContratista: ops.some((o) => o.Con_contratista === true),
       origen: t.Origen || '',
       // Una orden agrupa varias operaciones: se juntan sus motivos sin repetir.
       motivo: [...new Set(ops.map((o) => String(o.Motivo || '').trim()).filter(Boolean))].join('\n\n'),
@@ -450,9 +482,15 @@ export async function getTareasSugeridas(startISO) {
   return guardar(semana, 'tareas', ultimasTareas)
 }
 
-export async function enviarTareaAParada(tareaId, { paradaId }) {
+export async function enviarTareaAParada(tareaId, { paradaId, personalizada = null }) {
   const tarea = ultimasTareas.find((t) => t.id === tareaId)
   const ids = tarea?.idsMotor?.length ? tarea.idsMotor : [tareaId]
+  // Personalizada (día, horario, condición, ejecución): si difiere de la sugerida, va a una parada nueva.
+  if (!paradaId && personalizada) {
+    const sug = tarea?.paradaSugerida
+    if (sug?.existe && !cambioRespectoSugerida(sug, personalizada)) paradaId = sug.id
+    else paradaId = (await api.crearParada(paradaPersonalizada(tarea?.tarea || tareaId, tarea?.maquina, personalizada)))?.id_parada
+  }
   await Promise.all(ids.map((Id_tarea) => api.enviarDecision({ Id_tarea, Decision: 'Enviada', Id_parada: paradaId, semana: semanaVista })))
   invalidar()
   await esperarMotor()

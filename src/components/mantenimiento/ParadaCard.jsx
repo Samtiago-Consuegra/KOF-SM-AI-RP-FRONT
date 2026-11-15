@@ -1,5 +1,6 @@
 import { Factory, ListChecks } from 'lucide-react'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
+import EjecucionBadge from './EjecucionBadge.jsx'
 import { resumenMaquinas, textoMaquinas } from '../../utils/paradas.js'
 
 const COLORS = {
@@ -25,7 +26,10 @@ export default function ParadaCard({ parada, onClick }) {
     >
       <p className="flex items-center justify-between gap-1 text-xs text-ink-600">
         <span>{parada.horaInicio} – {parada.horaFin}</span>
-        <CondicionParadaBadge condicion={parada.condicion} iconOnly />
+        <span className="flex items-center gap-1">
+          <CondicionParadaBadge condicion={parada.condicion} iconOnly />
+          <EjecucionBadge ejecucion={parada.ejecucion} iconOnly />
+        </span>
       </p>
       <p className="text-sm font-medium text-ink-900 line-clamp-2">{parada.titulo}</p>
       <div className="mt-1 flex items-center justify-between gap-1 text-xs text-ink-600">

@@ -6,6 +6,7 @@ import { useProgramarParada } from '../../hooks/useProgramarParada.js'
 import TareasComponenteCard from './TareasComponenteCard.jsx'
 import CondicionParadaBadge from './CondicionParadaBadge.jsx'
 import CondicionSelector from './CondicionSelector.jsx'
+import EjecucionSelector from './EjecucionSelector.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { inputCls, labelCls } from './modalFormStyles.js'
 
@@ -26,6 +27,7 @@ function buildPrecargaFromEdit(parada) {
     horaInicio: parada.horaInicio,
     horaFin: parada.horaFin,
     condicion: parada.condicion || 'frio',
+    ejecucion: parada.ejecucion || 'propio',
     maquina: parada.maquina || cards[0]?.maquina || '',
     sistema: cards[0]?.sistemaId || '',
     componente: cards[0]?.componenteId || '',
@@ -187,6 +189,8 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
                   {hook.errores.condicion && <p className="mt-1 text-xs text-primary-600">{hook.errores.condicion}</p>}
                   <p className="mt-1 text-[11px] text-ink-400">Independiente del tipo de tarea.</p>
                 </div>
+
+                <EjecucionSelector value={hook.ejecucion} onChange={hook.setEjecucion} />
 
                 <div className="border-t border-dashed border-neutral-300 pt-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-400">Ubicación de la tarea</p>

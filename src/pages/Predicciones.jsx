@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronLeft, ChevronRight, Cpu, Download, Gauge, Info, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Cpu, Download, Gauge, Info, Loader2, ShieldCheck } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import UploadExcelButton from '../components/ui/UploadExcelButton.jsx'
 import StatCard from '../components/ui/StatCard.jsx'
@@ -18,8 +18,12 @@ import { useMachines } from '../hooks/useMachines.js'
 import { usePeriods } from '../hooks/usePeriods.js'
 import { usePredictions } from '../hooks/usePredictions.js'
 import { useToast } from '../context/ToastContext.jsx'
+import { staggerStyle } from '../utils/motion.js'
 
 const PAGE_SIZE = 5
+
+// Niveles que reciben un pulso de una sola vez al aparecer.
+const PULSE_LEVELS = new Set(['alto', 'critico'])
 
 const RISK_OPTIONS = [
   { value: 'todos', label: 'Todos los niveles' },
@@ -38,6 +42,8 @@ export default function Predicciones() {
   const [risk, setRisk] = useState('todos')
   const [range, setRange] = useState(() => defaultTimeRange(today))
   const [page, setPage] = useState(1)
+  const [slide, setSlide] = useState(null) // dirección del último cambio de página
+  const [downloading, setDownloading] = useState(false)
 
   const rangeKey = timeRangeKey(range)
   const resolved = useMemo(() => resolveTimeRange(range, today, periods), [range, periods]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -77,7 +83,13 @@ export default function Predicciones() {
     setParams(params, { replace: true })
   }, [machineFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => setPage(1), [machineFilter, risk, rangeKey])
+  useEffect(() => { setPage(1); setSlide(null) }, [machineFilter, risk, rangeKey])
+
+  const goPage = (n) => {
+    if (n === page) return
+    setSlide(n > page ? 'next' : 'prev')
+    setPage(n)
+  }
 
   const all = data?.rows ?? []
 
@@ -225,8 +237,20 @@ export default function Predicciones() {
     }
   }
 
+  const onDownload = async () => {
+    setDownloading(true)
+    try {
+      await exportXlsx()
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const rowAnim = slide === 'next' ? 'kof-row-in' : slide === 'prev' ? 'kof-row-in-left' : 'kof-fade-up'
+
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto">
+      <div className="kof-fade-up">
       <PageHeader
         title="Predicciones de falla"
         subtitle="Riesgo y tendencia del IPM de los equipos críticos de la línea, calculados con el motor predictivo."
@@ -239,20 +263,21 @@ export default function Predicciones() {
           }}
         />
       </PageHeader>
+      </div>
 
-      <p className="-mt-2 flex items-start gap-2 text-xs text-ink-500 max-w-3xl">
+      <p style={staggerStyle(1, 40)} className="kof-fade-up -mt-2 flex items-start gap-2 text-xs text-ink-500 max-w-3xl">
         <Info className="size-4 shrink-0 text-ink-400" />
         Las predicciones son estimaciones estadísticas. Confírmalas con una inspección en planta antes de detener un equipo.
       </p>
 
       <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total de máquinas" value={counts.total} icon={Cpu} caption="Equipos críticos monitoreados" />
-        <StatCard label="Riesgo crítico" value={counts.critico} icon={AlertTriangle} tone="red" caption="Requieren acción inmediata" />
-        <StatCard label="Riesgo medio" value={counts.medio} icon={Gauge} tone="amber" caption="En vigilancia" />
-        <StatCard label="Riesgo bajo" value={counts.bajo} icon={ShieldCheck} tone="teal" caption="Operación normal" />
+        <StatCard className="kof-fade-up" style={staggerStyle(0, 50, 80)} countUp label="Total de máquinas" value={counts.total} icon={Cpu} caption="Equipos críticos monitoreados" />
+        <StatCard className="kof-fade-up" style={staggerStyle(1, 50, 80)} countUp label="Riesgo crítico" value={counts.critico} icon={AlertTriangle} tone="red" caption="Requieren acción inmediata" />
+        <StatCard className="kof-fade-up" style={staggerStyle(2, 50, 80)} countUp label="Riesgo medio" value={counts.medio} icon={Gauge} tone="amber" caption="En vigilancia" />
+        <StatCard className="kof-fade-up" style={staggerStyle(3, 50, 80)} countUp label="Riesgo bajo" value={counts.bajo} icon={ShieldCheck} tone="teal" caption="Operación normal" />
       </div>
 
-      <Card className="p-4 flex flex-wrap items-end gap-x-4 gap-y-3">
+      <Card style={staggerStyle(6, 40)} className="kof-fade-up p-4 flex flex-wrap items-end gap-x-4 gap-y-3">
         <MachineFilter
           label="Máquina"
           variant="toolbar"
@@ -273,7 +298,7 @@ export default function Predicciones() {
       </Card>
 
       {loading && !data && (
-        <Card className="p-10 text-center text-sm text-ink-500">
+        <Card className="kof-fade p-10 text-center text-sm text-ink-500">
           Cargando la matriz predictiva…
         </Card>
       )}
@@ -296,7 +321,7 @@ export default function Predicciones() {
       )}
 
       {data?.available && (
-        <Card className="overflow-hidden">
+        <Card className="kof-fade-up overflow-hidden">
           <div className="flex flex-wrap items-center gap-3 justify-between px-5 py-4 border-b border-neutral-200">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-bold text-ink-900">Matriz predictiva de equipos</h2>
@@ -311,10 +336,15 @@ export default function Predicciones() {
               {loading && data ? <span className="text-xs text-ink-400 animate-pulse">recalculando…</span> : null}
               <button
                 type="button"
-                onClick={exportXlsx}
-                className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 hover:bg-neutral-50 px-3.5 py-2 text-sm font-medium text-ink-700"
+                onClick={onDownload}
+                disabled={downloading}
+                aria-busy={downloading}
+                className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 hover:bg-neutral-50 px-3.5 py-2 text-sm font-medium text-ink-700 transition-colors duration-200 disabled:opacity-60 disabled:cursor-wait"
               >
-                <Download className="size-4" /> Descargar Excel
+                {downloading
+                  ? <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  : <Download className="size-4" aria-hidden="true" />}
+                {downloading ? 'Generando…' : 'Descargar Excel'}
               </button>
             </div>
           </div>
@@ -348,12 +378,16 @@ export default function Predicciones() {
                   <th scope="col" className="px-5 py-3">IPM</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {visible.map((r) => {
+              <tbody key={`${machineFilter}|${risk}|${rangeKey}|${page}`} className="divide-y divide-neutral-100">
+                {visible.map((r, i) => {
                   const level = RISK_LEVELS[r.risk]
                   const positive = (r.trendPctCurrent ?? 0) > 0
                   return (
-                    <tr key={r.machine} className={r.risk === 'critico' ? 'bg-primary-50/60' : 'hover:bg-neutral-50'}>
+                    <tr
+                      key={r.machine}
+                      style={staggerStyle(i, 40)}
+                      className={`${rowAnim} transition-colors duration-200 ${r.risk === 'critico' ? 'bg-primary-50/60' : 'hover:bg-neutral-50'}`}
+                    >
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <span className={`size-2 rounded-full shrink-0 ${level.dot}`} />
@@ -361,7 +395,10 @@ export default function Predicciones() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${level.badge}`}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${level.badge} ${PULSE_LEVELS.has(r.risk) ? 'kof-risk-pulse' : ''}`}
+                          style={PULSE_LEVELS.has(r.risk) ? { '--kof-pulse': RISK_COLORS[r.risk], ...staggerStyle(i, 40, 220) } : undefined}
+                        >
                           {r.risk === 'critico' && <span className="size-1.5 rounded-full bg-white" />}
                           {level.label}
                         </span>
@@ -387,7 +424,7 @@ export default function Predicciones() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <Sparkline data={r.trendDisplay} color={RISK_COLORS[r.risk]} />
+                          <Sparkline draw data={r.trendDisplay} color={RISK_COLORS[r.risk]} delay={staggerStyle(i, 40, 120).animationDelay} />
                           {r.trendPctCurrent != null ? (
                             <span className={`text-xs font-semibold tabular-nums ${positive ? (r.trendPctCurrent > 15 ? 'text-primary-600' : 'text-amber-600') : 'text-tertiary-600'}`}>
                               {positive ? '+' : ''}{r.trendPctCurrent}%
@@ -438,20 +475,20 @@ export default function Predicciones() {
           <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-200 text-xs text-ink-500">
             <span>Mostrando {visible.length} de {rows.length} máquinas</span>
             <nav className="flex items-center gap-1" aria-label="Paginación">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="size-8 grid place-items-center rounded-lg hover:bg-neutral-100 disabled:opacity-40" aria-label="Página anterior">
+              <button onClick={() => goPage(Math.max(1, page - 1))} disabled={page === 1} className="size-8 grid place-items-center rounded-lg hover:bg-neutral-100 disabled:opacity-40" aria-label="Página anterior">
                 <ChevronLeft className="size-4" />
               </button>
               {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
                 <button
                   key={n}
-                  onClick={() => setPage(n)}
+                  onClick={() => goPage(n)}
                   aria-current={n === page ? 'page' : undefined}
                   className={`size-8 rounded-lg font-semibold ${n === page ? 'bg-ink-900 text-white' : 'hover:bg-neutral-100 text-ink-700'}`}
                 >
                   {n}
                 </button>
               ))}
-              <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className="size-8 grid place-items-center rounded-lg hover:bg-neutral-100 disabled:opacity-40" aria-label="Página siguiente">
+              <button onClick={() => goPage(Math.min(pages, page + 1))} disabled={page === pages} className="size-8 grid place-items-center rounded-lg hover:bg-neutral-100 disabled:opacity-40" aria-label="Página siguiente">
                 <ChevronRight className="size-4" />
               </button>
             </nav>

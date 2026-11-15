@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
+// Cuenta hasta `end`; la primera vez desde 0 y después desde el valor anterior.
 export default function useCountUp(end, duration = 800) {
   const [value, setValue] = useState(0)
   const [reduceMotion, setReduceMotion] = useState(false)
-  
+  const current = useRef(0)
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -14,25 +16,28 @@ export default function useCountUp(end, duration = 800) {
       mq.removeEventListener ? mq.removeEventListener('change', handler) : mq.removeListener(handler)
     }
   }, [])
-  
+
   useEffect(() => {
+    const target = end || 0
     if (reduceMotion) {
-      setValue(end || 0)
+      current.current = target
+      setValue(target)
       return
     }
-    let start = 0
+    const start = current.current
     const startTime = Date.now()
+    let frame
     const animate = () => {
-      const now = Date.now()
-      const progress = Math.min((now - startTime) / duration, 1)
+      const progress = Math.min((Date.now() - startTime) / duration, 1)
       const easeOut = 1 - Math.pow(1 - progress, 3)
-      setValue(Math.round(start + (end - start) * easeOut))
-      if (progress < 1) {
-        requestAnimationFrame(animate)
-      }
+      const next = Math.round(start + (target - start) * easeOut)
+      current.current = next
+      setValue(next)
+      if (progress < 1) frame = requestAnimationFrame(animate)
     }
     animate()
+    return () => cancelAnimationFrame(frame)
   }, [end, duration, reduceMotion])
-  
+
   return value
 }

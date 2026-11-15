@@ -1,5 +1,6 @@
 import ChartCard from './ChartCard.jsx'
 import { fmtInt } from './edaTheme.jsx'
+import { staggerStyle } from '../../utils/motion.js'
 
 const fmtH = (v) => Number(v ?? 0).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
@@ -27,8 +28,8 @@ export default function MtbfTable({ rows, className }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.machine} className={r.critical ? 'bg-red-50' : 'border-t border-gray-200'}>
+            {rows.map((r, i) => (
+              <tr key={r.machine} style={staggerStyle(Math.min(i, 8), 40)} className={`kof-row-in transition-colors duration-200 ${r.critical ? 'bg-red-50 hover:bg-red-100/70' : 'border-t border-gray-200 hover:bg-neutral-50'}`}>
                 <td className={`px-4 py-2 font-medium ${r.critical ? 'text-red-700' : ''}`}>
                   {r.machine}{r.critical && ' ★'}
                 </td>

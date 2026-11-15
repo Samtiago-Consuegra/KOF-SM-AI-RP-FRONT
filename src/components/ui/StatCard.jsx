@@ -1,4 +1,5 @@
 import Card from './Card.jsx'
+import useCountUp from '../../hooks/useCountUp.js'
 
 const TONES = {
   default: 'bg-neutral-100 text-ink-700',
@@ -8,9 +9,17 @@ const TONES = {
 }
 const VALUE_TONES = { default: 'text-ink-900', red: 'text-primary-600', amber: 'text-amber-600', teal: 'text-tertiary-600' }
 
-export default function StatCard({ label, value, unit, caption, icon: Icon, tone = 'default', footer }) {
+export default function StatCard({
+  label, value, unit, caption, icon: Icon, tone = 'default', footer,
+  countUp = false, format = String, decimals = 0, className = '', style,
+}) {
+  const animated = countUp && typeof value === 'number'
+  const scale = 10 ** decimals
+  const counted = useCountUp(animated ? Math.round(value * scale) : 0)
+  const shown = animated ? format(counted / scale) : value
+
   return (
-    <Card className="p-5 flex flex-col gap-3">
+    <Card className={`p-5 flex flex-col gap-3 ${className}`} style={style}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-ink-600">{label}</p>
         {Icon && (
@@ -20,7 +29,7 @@ export default function StatCard({ label, value, unit, caption, icon: Icon, tone
         )}
       </div>
       <p className="flex items-baseline gap-2">
-        <span className={`text-3xl font-bold tracking-tight tabular-nums ${VALUE_TONES[tone]}`}>{value}</span>
+        <span className={`text-3xl font-bold tracking-tight tabular-nums ${VALUE_TONES[tone]}`}>{shown}</span>
         {unit && <span className="text-sm text-ink-500">{unit}</span>}
       </p>
       {caption && <p className="text-xs text-ink-500">{caption}</p>}

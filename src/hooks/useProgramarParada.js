@@ -7,6 +7,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
   const [horaInicio, setHoraInicio] = useState(initialPrecarga?.horaInicio || '06:00')
   const [horaFin, setHoraFin] = useState(initialPrecarga?.horaFin || '10:00')
   const [condicion, setCondicion] = useState(initialPrecarga?.condicion || 'frio')
+  const [ejecucion, setEjecucion] = useState(initialPrecarga?.ejecucion === 'contratista' ? 'contratista' : 'propio')
   const [maquina, setMaquina] = useState(initialPrecarga?.maquina || '')
   const [sistema, setSistema] = useState(initialPrecarga?.sistema || '')
   const [componente, setComponente] = useState(initialPrecarga?.componente || '')
@@ -221,6 +222,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
       horaInicio,
       horaFin,
       condicion,
+      ejecucion,
       maquinas,
       maquina: maquinas[0] || maquina,
       tipo: tipoPred,
@@ -235,6 +237,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     horaInicio, setHoraInicio,
     horaFin, setHoraFin,
     condicion, setCondicion,
+    ejecucion, setEjecucion,
     maquina, setMaquina: onChangeMaquina,
     sistema, setSistema: onChangeSistema,
     componente, setComponente: onChangeComponente,

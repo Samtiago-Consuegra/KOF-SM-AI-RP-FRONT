@@ -218,6 +218,33 @@ body {
   to { opacity: 1; transform: translateX(0); }
 }
 
+/* ── Dashboard / Predicciones ───────────────────────────────────────────── */
+@keyframes kof-risk-pulse {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--kof-pulse, #f40000) 45%, transparent); }
+  to { box-shadow: 0 0 0 6px transparent; }
+}
+
+@keyframes kof-line-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.kof-fade-up { animation: fade-swap-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.kof-fade { animation: cum-fade 220ms ease-out both; }
+.kof-row-in { animation: cum-row-in-right 260ms cubic-bezier(0.25, 1, 0.5, 1) both; }
+.kof-row-in-left { animation: cum-row-in-left 260ms cubic-bezier(0.25, 1, 0.5, 1) both; }
+.kof-risk-pulse { animation: kof-risk-pulse 350ms ease-out both; }
+.kof-line-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: kof-line-draw 350ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kof-fade-up, .kof-fade, .kof-row-in, .kof-row-in-left { animation-delay: 0s !important; }
+  .kof-risk-pulse { animation: none !important; }
+  .kof-line-draw { animation: none !important; stroke-dasharray: none; stroke-dashoffset: 0; }
+}
+
 /* ── Arranque en frío ───────────────────────────────────────────────────── */
 @keyframes kof-wake-in {
   from { opacity: 0; transform: translateY(14px) scale(0.98); }
