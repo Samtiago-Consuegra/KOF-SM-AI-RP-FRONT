@@ -8,26 +8,39 @@ function ValorAnimado({ value, decimals = 0, suffix = '' }) {
   return <>{shown}{suffix}</>
 }
 
+// Texto cuando el backend no puede calcular el indicador (null) en el periodo
+const SIN_DATO = {
+  mtbf: 'Sin fallas en el periodo',
+  mttr: 'Sin fallas en el periodo',
+  disponibilidad: 'Sin días operados en el periodo',
+  cumplimientoPlan: 'Sin órdenes vencidas en el periodo',
+}
+
+const fmtPromedio = (v, decimals, suffix) => (v == null
+  ? '—'
+  : `${Number(v).toLocaleString('es-CO', { maximumFractionDigits: decimals ?? 0 })}${suffix ?? ''}`)
+
 function IndicadorCard({ label, value, decimals, suffix, captionKey, captionFn, promedio, higherBetter }) {
-  const favorable = value === promedio ? null : (higherBetter ? value > promedio : value < promedio)
+  const sinDato = value == null
+  const comparable = !sinDato && promedio != null
+  const favorable = !comparable || value === promedio ? null : (higherBetter ? value > promedio : value < promedio)
   const Icon = favorable === false ? TrendingDown : TrendingUp
   const iconCls = favorable === false ? 'text-primary-500' : 'text-tertiary-600'
-  const esMtbf = captionKey === 'mtbf'
-  const mtbfTexto = esMtbf && !value ? 'Sin fallas en el periodo' : null
+  const mtbfTexto = sinDato ? (SIN_DATO[captionKey] ?? 'Sin datos en el periodo') : null
 
   return (
     <div className="rounded-xl bg-neutral-50 p-4 flex flex-col justify-between min-h-[120px]">
       <div>
         <p className="text-[11px] font-medium uppercase tracking-wide text-ink-500">{label}</p>
         <p className="mt-1 text-2xl font-bold text-ink-900 tabular-nums">
-          {esMtbf && !value ? '–' : <ValorAnimado value={value} decimals={decimals} suffix={suffix} />}
+          {sinDato ? '–' : <ValorAnimado value={value} decimals={decimals} suffix={suffix} />}
         </p>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-xs text-ink-500">
-          {mtbfTexto ?? captionFn(promedio)}
+          {mtbfTexto ?? captionFn(fmtPromedio(promedio, decimals, suffix))}
         </span>
-        <Icon className={`size-4 shrink-0 ${iconCls}`} aria-hidden="true" />
+        {favorable !== null && <Icon className={`size-4 shrink-0 ${iconCls}`} aria-hidden="true" />}
       </div>
     </div>
   )
@@ -82,11 +95,12 @@ export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, 
           {cards.map((c) => (
             <IndicadorCard
               key={c.key}
+              captionKey={c.key}
               label={c.label}
               value={c.value}
               decimals={c.decimals}
               suffix={c.suffix}
-              promedio={indicadores.promedioLinea}
+              promedio={indicadores.promedioLinea?.[c.key] ?? null}
               higherBetter={c.higherBetter}
               captionFn={(promedio) => CAPTIONS.promedio(promedio)}
             />

@@ -50,7 +50,27 @@ export const getHistoriaClinica = () => apiGet('/motor/historia-clinica')
 
 export const getHistoriaClinicaAcr = () => apiGet('/motor/historia-clinica-acr')
 
-/** params: { maquina, tipo, desde, hasta, id_componente, pagina, por_pagina } */
+// --- Historia clínica (cálculos por periodo en app/historia_service.py) ------------------------
+
+/** { available, months, min, max, datos_hasta } — límites del filtro de periodo. */
+export const getHistoriaPeriodos = () => apiGet('/motor/historia/periodos')
+
+/** { available, maquina, sistemas: [{ id, nombre, componentes: [{ id, nombre }] }] } */
+export const getHistoriaJerarquia = (maquina) => apiGet('/motor/historia/jerarquia', { maquina })
+
+/** params: { maquina, desde, hasta } */
+export const getHistoriaFicha = (params) => apiGet('/motor/historia/ficha', params)
+
+/** params: { maquina, desde, hasta, sistema, componente } */
+export const getHistoriaIndicadores = (params) => apiGet('/motor/historia/indicadores', params)
+
+/** params: { maquina, sistema, componente } — últimos 12 meses con datos. */
+export const getHistoriaParosPorMes = (params) => apiGet('/motor/historia/paros-por-mes', params)
+
+/** params: { maquina, desde, hasta } — datos del PDF "Exportar historia". */
+export const getHistoriaResumen = (params) => apiGet('/motor/historia/resumen', params)
+
+/** params: { maquina, tipo, desde, hasta, sistema, id_componente, pagina, por_pagina } */
 export const getEventosHistoria = (params) => apiGet('/motor/historia/eventos', params)
 
 export const getCumplimientoSap = () => apiGet('/motor/cumplimiento-sap')

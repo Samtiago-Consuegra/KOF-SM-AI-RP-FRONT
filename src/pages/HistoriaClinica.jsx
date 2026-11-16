@@ -15,44 +15,35 @@ import ComponenteSelect from '../components/historia/ComponenteSelect.jsx'
 import {
   MAQUINAS,
   SUFIJO_LINEA,
+  getPeriodos,
   getFicha,
   getIndicadoresGeneral,
   getParosPorMesSector,
-  getComponentesOrdenados,
   getJerarquia,
   getResumenExportacion,
+  invalidarHistoria,
 } from '../services/historiaClinicaService'
+import { useMotorEstado } from '../hooks/useMotorEstado.js'
 import { resolveTimeRange } from '../utils/period.js'
-import { toISODate } from '../utils/format.js'
 
-// Últimos 12 meses como límites del filtro de periodo (mock local, sin backend).
-// Cuando exista API se reemplaza por los periodos reales.
-function boundsMock() {
-  const hoy = new Date()
-  const months = []
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1)
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-  }
-  return { months, min: `${months[0]}-01`, max: toISODate(hoy) }
-}
-
-// La página abre sobre los últimos 12 meses (todo el histórico simulado).
-function rangoPorDefecto() {
-  const { months } = boundsMock()
+// La página abre sobre los últimos 12 meses CON DATOS (el reporte diario va atrasado
+// respecto a hoy). Los límites salen de GET /motor/historia/periodos.
+function rangoPorDefecto(bounds) {
+  const months = bounds?.months ?? []
+  const ultimo = months[months.length - 1] ?? null
   return {
     period: 'meses',
-    month: months[months.length - 1],
+    month: ultimo,
     from: null,
     to: null,
-    fromMonth: months[0],
-    toMonth: months[months.length - 1],
+    fromMonth: months[Math.max(0, months.length - 12)] ?? null,
+    toMonth: ultimo,
   }
 }
 
 // Parámetros del periodo guardados en la URL: pm, pmo, pf, pt, pfm, ptm
-function rangoDesdeURL(sp) {
-  const base = rangoPorDefecto()
+function rangoDesdeURL(sp, bounds) {
+  const base = rangoPorDefecto(bounds)
   return {
     period: sp.get('pm') ?? base.period,
     month: sp.get('pmo') ?? base.month,
@@ -76,20 +67,37 @@ function rangoAParams(range) {
 
 export default function HistoriaClinica() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const bounds = useMemo(() => boundsMock(), [])
+  // undefined = cargando · null = el motor aún no tiene datos
+  const [bounds, setBounds] = useState(undefined)
   const [jerarquia, setJerarquia] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
+  // Sube cuando termina una corrida del motor: todas las secciones se vuelven a pedir.
+  const [version, setVersion] = useState(0)
+  useMotorEstado(useCallback(() => { invalidarHistoria(); setVersion((v) => v + 1) }, []))
 
   const maquina = MAQUINAS.includes(searchParams.get('maquina')) ? searchParams.get('maquina') : 'Llenadora'
   const sistemaId = searchParams.get('sistema') ?? ''
   const componenteId = searchParams.get('componente') ?? ''
 
-  const [range, setRange] = useState(() => rangoDesdeURL(searchParams))
+  // Si la URL ya trae un periodo se respeta; si no, se fija al llegar los límites reales.
+  const [range, setRange] = useState(() => (searchParams.get('pm') ? rangoDesdeURL(searchParams, null) : null))
   const resolved = useMemo(
-    () => resolveTimeRange(range, new Date(), bounds),
+    () => (bounds && range ? resolveTimeRange(range, new Date(), bounds) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [range, bounds],
   )
+
+  useEffect(() => {
+    let alive = true
+    getPeriodos()
+      .then((b) => {
+        if (!alive) return
+        setBounds(b)
+        if (b) setRange((r) => r ?? rangoPorDefecto(b))
+      })
+      .catch(() => { if (alive) setBounds(null) })
+    return () => { alive = false }
+  }, [version])
 
   const sistema = jerarquia.find((s) => s.id === sistemaId) ?? null
   const componente = sistema?.componentes.find((c) => c.id === componenteId) ?? null
@@ -98,24 +106,24 @@ export default function HistoriaClinica() {
   useEffect(() => {
     let alive = true
     setJerarquia([])
-    getJerarquia(maquina).then((h) => { if (alive) setJerarquia(h) })
+    getJerarquia(maquina).then((h) => { if (alive) setJerarquia(h) }).catch(() => {})
     return () => { alive = false }
-  }, [maquina])
+  }, [maquina, version])
 
   // Cambiar de máquina: Sistema y Componente vuelven a "Todos" (se omiten del URL)
   const setMaquina = useCallback((m) => {
-    setSearchParams({ maquina: m, ...rangoAParams(range) })
+    setSearchParams({ maquina: m, ...(range ? rangoAParams(range) : {}) })
   }, [range, setSearchParams])
 
   // Cambiar de sistema: Componente vuelve a "Todos"
   const setSistema = useCallback((id) => {
-    const next = { maquina, ...rangoAParams(range) }
+    const next = { maquina, ...(range ? rangoAParams(range) : {}) }
     if (id) next.sistema = id
     setSearchParams(next)
   }, [maquina, range, setSearchParams])
 
   const setComponente = useCallback((id) => {
-    const next = { maquina, ...rangoAParams(range) }
+    const next = { maquina, ...(range ? rangoAParams(range) : {}) }
     if (sistemaId) next.sistema = sistemaId
     if (id) next.componente = id
     setSearchParams(next)
@@ -131,11 +139,11 @@ export default function HistoriaClinica() {
 
   // Alcance de los filtros
   const filtrosBase = useMemo(
-    () => ({ desde: resolved.start, hasta: resolved.end }),
-    [resolved.start, resolved.end],
+    () => (resolved ? { desde: resolved.start, hasta: resolved.end } : null),
+    [resolved?.start, resolved?.end], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const filtrosIndicadores = useMemo(
-    () => ({ ...filtrosBase, sistema: sistemaId || null, componente: componenteId || null }),
+    () => (filtrosBase ? { ...filtrosBase, sistema: sistemaId || null, componente: componenteId || null } : null),
     [filtrosBase, sistemaId, componenteId],
   )
 
@@ -153,42 +161,33 @@ export default function HistoriaClinica() {
   const [ficha, setFicha] = useState(null)
   const [indicadores, setIndicadores] = useState(null)
   const [parosPorMes, setParosPorMes] = useState(null)
-  // La tarjeta de componentes ya lee el motor; esta carga solo marca cuándo pintar la línea de tiempo.
-  const [, setComponentes] = useState(null)
   const [cargandoBase, setCargandoBase] = useState(true)
   const [cargandoIndic, setCargandoIndic] = useState(true)
-  const [cargandoAbajo, setCargandoAbajo] = useState(true)
 
   useEffect(() => {
+    if (!filtrosBase) return undefined
     let alive = true
     setCargandoBase(true)
-    getFicha(maquina, filtrosBase).then((r) => {
-      if (alive) { setFicha(r); setCargandoBase(false) }
-    })
+    getFicha(maquina, filtrosBase)
+      .catch(() => null)
+      .then((r) => { if (alive) { setFicha(r); setCargandoBase(false) } })
     return () => { alive = false }
-  }, [maquina, filtrosBase])
+  }, [maquina, filtrosBase, version])
 
   useEffect(() => {
+    if (!filtrosIndicadores) return undefined
     let alive = true
     setCargandoIndic(true)
     Promise.all([
       getIndicadoresGeneral(maquina, filtrosIndicadores),
       getParosPorMesSector(maquina, filtrosIndicadores),
-    ]).then(([ind, ppm]) => {
-      if (alive) { setIndicadores(ind); setParosPorMes(ppm); setCargandoIndic(false) }
-    })
+    ])
+      .catch(() => [null, null])
+      .then(([ind, ppm]) => {
+        if (alive) { setIndicadores(ind); setParosPorMes(ppm); setCargandoIndic(false) }
+      })
     return () => { alive = false }
-  }, [maquina, filtrosIndicadores])
-
-  useEffect(() => {
-    let alive = true
-    setCargandoAbajo(true)
-    getComponentesOrdenados(maquina, filtrosBase).then((comp) => {
-      if (alive) { setComponentes(comp); setCargandoAbajo(false) }
-    })
-    return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maquina, filtrosBase, resolved.seedKey])
+  }, [maquina, filtrosIndicadores, version])
 
   const handleExportar = useCallback(async ({ desde, hasta }) => {
     const resumen = await getResumenExportacion({
@@ -208,8 +207,23 @@ export default function HistoriaClinica() {
     maquina: `${maquina} ${SUFIJO_LINEA}`,
     sistemaNombre: sistema?.nombre ?? null,
     componenteNombre: componente?.nombre ?? null,
-    periodoLabel: resolved.label,
-  }), [maquina, sistema, componente, resolved.label])
+    periodoLabel: resolved?.label ?? '',
+  }), [maquina, sistema, componente, resolved?.label])
+
+  // El motor nunca ha corrido: no hay nada que filtrar ni mostrar todavía.
+  if (bounds === null) {
+    return (
+      <div className="space-y-6 max-w-[1500px] mx-auto">
+        <PageHeader
+          title={`Historia clínica · ${maquina} ${SUFIJO_LINEA}`}
+          subtitle="Todo lo que le ha pasado a la máquina: fallas, avisos, órdenes y mantenimientos"
+        />
+        <Card className="p-6">
+          <p className="text-sm text-ink-500">Aún no hay resultados del motor. Sube los archivos de SAP en Mantenimiento.</p>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto">
@@ -221,6 +235,7 @@ export default function HistoriaClinica() {
         <button
           type="button"
           onClick={() => setModalOpen(true)}
+          disabled={!resolved}
           className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-4 text-sm font-medium text-ink-900 transition-colors hover:border-primary-500 hover:text-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"
         >
           <FileDown className="size-4" aria-hidden="true" />
@@ -254,7 +269,9 @@ export default function HistoriaClinica() {
             />
             <ComponenteSelect options={sistema?.componentes ?? []} value={componenteId} onChange={setComponente} />
           </div>
-          <PeriodFilter value={range} onChange={setRango} bounds={bounds} tone="neutral" layout="spread" periodControl="dropdown" />
+          {range && bounds && (
+            <PeriodFilter value={range} onChange={setRango} bounds={bounds} tone="neutral" layout="spread" periodControl="dropdown" />
+          )}
         </div>
       </Card>
 
@@ -275,28 +292,31 @@ export default function HistoriaClinica() {
       <div className="grid gap-6 lg:grid-cols-3 items-start">
         <div className="lg:col-span-2">
           <LineaTiempo
+            key={version}
             maquina={maquina}
-            desde={resolved.start}
-            hasta={resolved.end}
-            periodoKey={resolved.seedKey}
-            loading={cargandoAbajo}
+            desde={resolved?.start}
+            hasta={resolved?.end}
+            periodoKey={resolved?.seedKey}
+            loading={!resolved}
           />
         </div>
         <div className="lg:col-span-1">
           {/* Lista del motor: los chips de máquina de la tarjeta no alteran el resto de la página. */}
-          <ComponentesMaquina maquina={maquina} />
+          <ComponentesMaquina key={version} maquina={maquina} />
         </div>
       </div>
 
       {/* Modal de exportación */}
-      <ExportarHistoriaModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        maquina={maquina}
-        alcance={sistema || componente ? ctxTitulo : null}
-        periodoInicial={{ range, resolved }}
-        onExport={handleExportar}
-      />
+      {resolved && (
+        <ExportarHistoriaModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          maquina={maquina}
+          alcance={sistema || componente ? ctxTitulo : null}
+          periodoInicial={{ range, resolved }}
+          onExport={handleExportar}
+        />
+      )}
     </div>
   )
 }
