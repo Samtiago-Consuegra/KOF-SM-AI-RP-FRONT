@@ -56,11 +56,12 @@ const prioridadPantalla = (p) => PRIORIDAD_PANTALLA[p] || 'Media'
  * El motor responde 202 {status:"calculando"} mientras corre. Se reintenta hasta que haya datos.
  * {available:false} = todavía no se han subido los archivos: se devuelve null.
  */
-async function conDatos(llamada, intentos = 40) {
+async function conDatos(llamada, intentos = 40, onEstado = () => {}) {
   for (let i = 0; i < intentos; i++) {
     const res = await llamada()
-    if (res?.status === 'calculando') { await esperar(3000); continue }
-    if (res?.available === false) return null
+    if (res?.status === 'calculando') { onEstado('calculando'); await esperar(3000); continue }
+    if (res?.available === false) { onEstado('sin_datos', res.message ?? null); return null }
+    onEstado('ok')
     return res
   }
   return null
@@ -75,9 +76,32 @@ const esperarMotor = () => esperarFin()
 let semanaVista = semanaISO(hoyISO())
 const planPorSemana = new Map()
 
+// Estado del plan por semana (calculando / sin_datos / ok), solo en memoria: el Dashboard lo
+// escucha para mostrar "Calculando…" o el mensaje del backend sin hacer peticiones propias.
+const estadoPlan = new Map()
+const oyentesPlan = new Set()
+
+function avisarEstado(semana) {
+  return (estado, mensaje = null) => {
+    estadoPlan.set(semana, { estado, mensaje })
+    oyentesPlan.forEach((fn) => fn(semana))
+  }
+}
+
+/** { estado, mensaje } del plan de la semana, o null. No hace peticiones. */
+export function leerEstadoPlan(startISO) {
+  return startISO ? estadoPlan.get(semanaISO(startISO)) ?? null : null
+}
+
+/** Avisa (con la semana ISO) cada vez que cambia el estado de un plan. Devuelve la baja. */
+export function suscribirEstadoPlan(fn) {
+  oyentesPlan.add(fn)
+  return () => oyentesPlan.delete(fn)
+}
+
 function planSemanal(semana = semanaVista, { fresco = false } = {}) {
   if (fresco || !planPorSemana.has(semana)) {
-    planPorSemana.set(semana, conDatos(() => api.getPlanSemanal(semana)).catch(() => null))
+    planPorSemana.set(semana, conDatos(() => api.getPlanSemanal(semana), 40, avisarEstado(semana)).catch(() => null))
   }
   return planPorSemana.get(semana)
 }
@@ -271,12 +295,12 @@ function paradaPantalla(p, resPlan) {
   const manuales = (p.tareas_manuales || []).map((t) => ({
     maquina: t.Maquina, sistema: t.Sistema || '', sistemaId: t.Sistema || '',
     componente: t.Componente || '', componenteId: t.Id_componente || t.Componente || '',
-    tipo: t.Tipo_tarea || 'Preventiva', descripcion: t.Tarea,
+    tipo: t.Tipo_tarea || 'Preventiva', descripcion: t.Tarea, prioridad: null,
   }))
   const enviadas = tareasEnviadas(resPlan, p.id_parada).map((t) => ({
     maquina: t.Maquina, sistema: t.Sistema || '', sistemaId: t.Sistema || '',
     componente: t.Componente || '', componenteId: t.Id_componente || t.Componente || '',
-    tipo: tipoDeClase(t.Clase_orden), descripcion: t.Tarea, idMotor: t.Id_tarea,
+    tipo: tipoDeClase(t.Clase_orden), descripcion: t.Tarea, idMotor: t.Id_tarea, prioridad: t.Prioridad || null,
   }))
   const tareasDetalle = [...manuales, ...enviadas]
   const maquinas = (p.maquinas || []).includes(TODA_LA_LINEA) ? [...MAQUINAS_LINEA] : (p.maquinas || [])

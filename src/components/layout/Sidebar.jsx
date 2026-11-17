@@ -21,12 +21,12 @@ export default function Sidebar({ open, onClose }) {
       {/* Fondo en móvil */}
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-ink-900/40 lg:hidden transition-opacity ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 z-modal bg-ink-900/40 lg:hidden transition-opacity ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         aria-hidden="true"
       />
       <aside
-        className={`fixed z-50 inset-y-0 left-0 w-72 bg-white border-r border-neutral-200 flex flex-col transition-transform
-          lg:sticky lg:top-16 lg:z-10 lg:h-[calc(100vh-4rem)] lg:w-64 lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed z-modal inset-y-0 left-0 w-72 bg-white border-r border-neutral-200 flex flex-col transition-transform
+          lg:sticky lg:top-16 lg:z-sticky lg:h-[calc(100vh-4rem)] lg:w-64 lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
         aria-label="Navegación principal"
       >
         <div className="flex items-center justify-between h-16 px-4 border-b border-neutral-200 lg:hidden">

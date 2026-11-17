@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { Upload, ChevronLeft, ChevronRight, CalendarPlus, FileDown, Bot, X, Loader2, Check } from 'lucide-react'
 import { useMantenimientoWeek, weekLegend } from '../hooks/useMantenimientoWeek.js'
@@ -38,9 +39,9 @@ function Toast({ toast, onClose }) {
   if (!toast) return null
   const isError = toast.variant === 'error'
   return (
-    <div className="fixed bottom-6 right-6 z-[80]">
+    <div className="fixed bottom-6 right-6 z-toast">
       <style>{`
-        @keyframes toast-in { from { opacity: 0; transform: translate(20px, 20px); } to { opacity: 1; transform: translate(0,0); } }
+        @keyframes toast-in { from { opacity: 0; transform: translate(20px, 20px); } to { opacity: 1; transform: none; } }
         @keyframes toast-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
         @media (prefers-reduced-motion: reduce) { .toast-anim { animation: none !important; } }
       `}</style>
@@ -83,6 +84,35 @@ export default function Mantenimiento() {
   const exportOkTimer = useRef(null)
 
   const cerrarToast = useCallback(() => setToast(null), [])
+
+  // Enlace desde el Dashboard (?semana=…&parada=…): al cargar las paradas se lleva la vista a la
+  // tarjeta, se resalta 2 s y se limpian los parámetros sin recargar.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const paradaEnlace = searchParams.get('parada')
+  const [resaltada, setResaltada] = useState(null)
+  useEffect(() => {
+    if (!paradaEnlace) return undefined
+    const existe = paradas.some((p) => String(p.id) === paradaEnlace)
+    if (!existe) {
+      // Ya terminó la carga y no está en esta semana: solo se limpia el enlace.
+      if (!actualizando && paradas.length) setSearchParams({}, { replace: true })
+      return undefined
+    }
+    const el = [...document.querySelectorAll('[data-parada-id]')]
+      .find((n) => n.dataset.paradaId === paradaEnlace && (n.offsetParent !== null || n.closest('details')))
+    const details = el?.closest('details')
+    if (details) details.open = true // en móvil el día puede estar plegado
+    const reducir = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el?.scrollIntoView({ behavior: reducir ? 'auto' : 'smooth', block: 'center' })
+    setResaltada(paradaEnlace)
+    setSearchParams({}, { replace: true })
+    return undefined
+  }, [paradaEnlace, paradas, actualizando, setSearchParams])
+  useEffect(() => {
+    if (!resaltada) return undefined
+    const t = setTimeout(() => setResaltada(null), 2000)
+    return () => clearTimeout(t)
+  }, [resaltada])
 
   useEffect(() => { setLegend(weekLegend(week)) }, [week?.start, tick]) // eslint-disable-line react-hooks/exhaustive-deps
   // Los datos salen del motor (backend) y dependen de la semana que se está viendo.
@@ -167,11 +197,11 @@ export default function Mantenimiento() {
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto">
       <style>{`
-        @keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fab-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+        @keyframes fab-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: none; } }
         @keyframes pulse-soft { 0%,100% { box-shadow: 0 0 0 0 rgba(244,0,0,0.25); } 50% { box-shadow: 0 0 0 8px rgba(244,0,0,0.05); } }
-        @keyframes cd-pop { from { transform: scale(0.6); } to { transform: scale(1); } }
-        @keyframes btn-pop { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes cd-pop { from { transform: scale(0.6); } to { transform: none; } }
+        @keyframes btn-pop { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: none; opacity: 1; } }
         .m-anim > * { animation: fade-up 350ms ease-out both; }
         .m-anim > *:nth-child(1){animation-delay:0ms}
         .m-anim > *:nth-child(2){animation-delay:60ms}
@@ -230,7 +260,7 @@ export default function Mantenimiento() {
                   <button onClick={() => { setEditParada(null); setProgOpen(true) }} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-3 text-sm text-white hover:bg-primary-600 active:scale-[0.97] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><CalendarPlus className="size-4" /> Programar parada</button>
                 </div>
               </div>
-              <CalendarioSemanal paradas={paradas} week={week} onParadaClick={setDetalleParada} dir={dir} />
+              <CalendarioSemanal paradas={paradas} week={week} onParadaClick={setDetalleParada} dir={dir} resaltadaId={resaltada} />
             </div>
           </div>
           <div>
@@ -241,7 +271,7 @@ export default function Mantenimiento() {
         <TablaSugerencias plan={plan} tareas={tareas} paradas={paradas} onRefresh={refreshAll} onToast={setToast} />
       </div>
 
-      <button aria-label="Abrir asistente de mantenimiento" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)} className="fab-pulse fixed bottom-6 right-6 z-40 h-12 w-12 rounded-full bg-primary-500 text-white grid place-items-center shadow-lg hover:bg-primary-600 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400" style={{ animation: 'fab-in 350ms ease-out both, pulse-soft 2400ms ease-in-out infinite' }}>
+      <button aria-label="Abrir asistente de mantenimiento" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)} className="fab-pulse fixed bottom-6 right-6 z-sticky h-12 w-12 rounded-full bg-primary-500 text-white grid place-items-center shadow-lg hover:bg-primary-600 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400" style={{ animation: 'fab-in 350ms ease-out both, pulse-soft 2400ms ease-in-out infinite' }}>
         <Bot className="size-5" />
       </button>
 

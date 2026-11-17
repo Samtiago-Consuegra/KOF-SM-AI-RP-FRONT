@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Activity, AlertTriangle, CalendarCog, Clock3, Cpu, FileSpreadsheet, RefreshCw, Timer, Wrench, ArrowRight, TrendingDown, TrendingUp } from 'lucide-react'
+import { Activity, AlertTriangle, Clock3, Cpu, FileSpreadsheet, RefreshCw, Timer, ArrowRight, TrendingDown, TrendingUp } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import UploadExcelButton from '../components/ui/UploadExcelButton.jsx'
 import MachineFilter from '../components/ui/MachineFilter.jsx'
@@ -16,8 +16,9 @@ import EvolucionMensualChart from '../components/charts/EvolucionMensualChart.js
 import ParosPorTurnoChart from '../components/charts/ParosPorTurnoChart.jsx'
 import MinutosVsEficienciaChart from '../components/charts/MinutosVsEficienciaChart.jsx'
 import MtbfTable from '../components/charts/MtbfTable.jsx'
+import ProximaIntervencionCard from '../components/dashboard/ProximaIntervencionCard.jsx'
 import { RISK_LEVELS } from '../data/predictions.js'
-import { findMachine, machineOptions } from '../api/machines.js'
+import { machineOptions } from '../api/machines.js'
 import { trendSeries } from '../api/edaAdapter.js'
 import { fetchPredictionPreview } from '../api/predictions.js'
 import { useMachines } from '../hooks/useMachines.js'
@@ -28,12 +29,8 @@ import { defaultTimeRange, resolveTimeRange } from '../utils/period.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { staggerStyle } from '../utils/motion.js'
 
-// La pantalla /mantenimiento todavía no está conectada: esta vista previa sigue
-// siendo un ejemplo. En cuanto exista, se reemplaza por GET /mantenimiento.
-const MAINTENANCE_PLANS = [
-  { machine: 'Llenadora', priority: 'alta', task: 'Cambio de sellos hidráulicos', when: 'Mañana, 08:00', tech: 'Cuadrilla mecánica turno 1' },
-  { machine: 'Empacadora', priority: 'media', task: 'Alineación de rodamiento frontal', when: 'En 3 días, 14:00', tech: 'Cuadrilla mecánica turno 2' },
-]
+/** Plazo de la probabilidad: 7 -> "7 días"; un texto del motor se muestra tal cual. */
+const textoHorizonte = (h) => (h == null || h === '' ? null : typeof h === 'number' ? `${h} día${h === 1 ? '' : 's'}` : String(h))
 
 const EMPTY_PREVIEW = { loading: true, available: false, rows: [], message: null, meta: null }
 
@@ -118,8 +115,11 @@ export default function Dashboard() {
   const criticalRows = preview.rows.filter((r) => r.risk === 'critico')
   const topRisk = preview.rows.reduce((a, b) => (a === null || b.probability > a.probability ? b : a), null)
 
-  const highPlan = MAINTENANCE_PLANS.find((p) => p.priority === 'alta')
-  const planMachine = highPlan ? findMachine(highPlan.machine, machines) : null
+  const horizonte = textoHorizonte(topRisk?.horizon)
+  // Fecha de la última ejecución del modelo o, si no viene, el corte de los datos.
+  const modeloRaw = preview.meta?.generado ?? preview.meta?.datos_hasta ?? null
+  const modeloDate = modeloRaw ? (String(modeloRaw).length <= 10 ? fromISODate(modeloRaw) : new Date(modeloRaw)) : null
+  const modeloFecha = modeloDate && !Number.isNaN(modeloDate.getTime()) ? fmtDateShort(modeloDate) : null
 
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto">
@@ -268,9 +268,12 @@ export default function Dashboard() {
             <aside className="kof-fade grid gap-4 sm:grid-cols-2 xl:grid-cols-1 xl:sticky xl:top-24">
               {/* Vista previa: predicciones */}
               <Card className="p-5 flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <Activity className="size-5 text-primary-500" />
-                  <h2 className="font-bold text-ink-900">Predicciones de falla</h2>
+                <div className="flex items-start gap-2">
+                  <Activity className="size-5 shrink-0 mt-0.5 text-primary-500" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <h2 className="font-bold leading-snug text-ink-900 text-balance">Predicciones de falla</h2>
+                    <p className="kof-fade text-xs text-ink-500 whitespace-nowrap">Todas las máquinas monitoreadas</p>
+                  </div>
                 </div>
 
                 {preview.loading && <Skeleton className="h-[220px]" />}
@@ -298,14 +301,19 @@ export default function Dashboard() {
                             <p className="text-lg font-bold text-ink-900">{topRisk.machine}</p>
                             <p className="text-sm text-ink-600">IPM {topRisk.ipm}</p>
                           </div>
-                          <span className={`text-3xl font-extrabold tabular-nums ${RISK_LEVELS[topRisk.risk]?.text ?? 'text-ink-900'}`}>
-                            {topRisk.probability}%
-                          </span>
+                          <div className="text-right">
+                            <span className={`text-3xl font-extrabold tabular-nums ${RISK_LEVELS[topRisk.risk]?.text ?? 'text-ink-900'}`}>
+                              {topRisk.probability}%
+                            </span>
+                            {horizonte && (
+                              <p className="kof-fade max-w-[9rem] text-[11px] leading-tight text-ink-500">probabilidad en los próximos {horizonte}</p>
+                            )}
+                          </div>
                         </div>
-                        {topRisk.top_cause && (
-                          <p className="mt-3 flex items-start gap-1.5 text-sm text-primary-700">
+                        {topRisk.topCause && (
+                          <p className="kof-fade mt-3 flex items-start gap-1.5 text-sm text-primary-700">
                             <AlertTriangle className="size-4 mt-0.5 shrink-0" />
-                            {topRisk.top_cause}
+                            {topRisk.topCause}
                           </p>
                         )}
                       </div>
@@ -316,41 +324,18 @@ export default function Dashboard() {
                     >
                       Ver predicción de {topRisk?.machine ?? 'la máquina'} <ArrowRight className="size-4" />
                     </Link>
+                    {modeloFecha && (
+                      <p className="kof-fade -mt-1 flex items-center justify-center gap-1.5 text-[11px] text-ink-400">
+                        <Clock3 className="size-3" aria-hidden="true" />
+                        Modelo actualizado: {modeloFecha}
+                      </p>
+                    )}
                   </>
                 )}
               </Card>
 
-              {/* Vista previa: mantenimiento (aún sin conectar) */}
-              <Card className="p-5 flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <CalendarCog className="size-5 text-tertiary-600" />
-                  <h2 className="font-bold text-ink-900">Planes de mantenimiento</h2>
-                </div>
-                {planMachine ? (
-                  <div className="rounded-xl border border-neutral-200 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-medium text-ink-500">Próxima intervención</p>
-                      <span className="rounded-md bg-primary-600 text-white text-[11px] font-semibold px-2 py-0.5">Prioridad alta</span>
-                    </div>
-                    <p className="mt-1 text-lg font-bold text-ink-900">{planMachine.machine}</p>
-                    <p className="text-sm text-ink-600">{fmtNumber(planMachine.events_count)} paros registrados</p>
-                    <ul className="mt-3 space-y-1.5 text-sm text-ink-700">
-                      <li className="flex items-center gap-2"><Wrench className="size-4 text-primary-500" />{highPlan.task}</li>
-                      <li className="flex items-center gap-2"><Clock3 className="size-4 text-ink-400" />{highPlan.when}</li>
-                    </ul>
-                  </div>
-                ) : (
-                  <p className="rounded-xl bg-neutral-50 p-4 text-sm text-ink-600">
-                    No hay mantenimientos de prioridad alta para esta selección. Cambia el filtro de máquinas para ver otras.
-                  </p>
-                )}
-                <Link
-                  to={highPlan ? `/mantenimiento?maquina=${encodeURIComponent(highPlan.machine)}` : '/mantenimiento'}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-ink-900 py-2.5 text-sm font-semibold"
-                >
-                  Ver plan de mantenimiento <ArrowRight className="size-4" />
-                </Link>
-              </Card>
+              {/* Próxima intervención real del motor (toda la línea) */}
+              <ProximaIntervencionCard />
             </aside>
           </div>
       )}

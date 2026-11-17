@@ -13,7 +13,7 @@ export default function EjecucionSelector({ value, onChange, className = '', con
   return (
     <div className={className}>
       <style>{`
-        @keyframes ejec-pop { from { transform: scale(0.7); } to { transform: scale(1); } }
+        @keyframes ejec-pop { from { transform: scale(0.7); } to { transform: none; } }
         .ejec-icon-on { animation: ejec-pop 180ms cubic-bezier(0.22, 1, 0.36, 1); }
         .ejec-btn { transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, box-shadow 200ms ease; touch-action: manipulation; }
         .ejec-btn:active { transform: scale(0.98); }

@@ -33,10 +33,11 @@ function toISODate(d) {
   return `${year}-${month}-${day}`
 }
 
-export function getWeekList(count = 12) {
+/** `count` semanas hacia atrás desde la actual; `futuras` añade las siguientes al inicio de la lista. */
+export function getWeekList(count = 12, futuras = 0) {
   const now = new Date()
   const weeks = []
-  for (let i = 0; i < count; i++) {
+  for (let i = -futuras; i < count; i++) {
     const ref = new Date(now)
     ref.setDate(ref.getDate() - i * 7)
     const start = startOfWeekMonday(ref)

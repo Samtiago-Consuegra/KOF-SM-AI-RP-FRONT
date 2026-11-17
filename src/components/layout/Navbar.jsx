@@ -10,7 +10,7 @@ export default function Navbar({ onMenu }) {
   const today = fmtDateLong(now)
   const short = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/90 backdrop-blur border-b border-neutral-200 relative">
+    <header className="sticky top-0 z-sticky h-16 bg-white/90 backdrop-blur border-b border-neutral-200 relative">
       <div className="h-full flex items-center gap-3 px-4 lg:px-6">
         <button type="button" onClick={onMenu} className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-neutral-100" aria-label="Abrir menú">
           <Menu className="size-5" />

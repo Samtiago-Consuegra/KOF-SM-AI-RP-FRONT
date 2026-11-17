@@ -1,10 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { addDays, fromISODate, toISODate } from '../../utils/format.js'
 import { monthBounds, monthKey } from '../../utils/period.js'
-
-// useLayoutEffect no corre en el render del servidor (SSR)
-const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+import Popover from './Popover.jsx'
 
 const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
@@ -157,76 +155,54 @@ function RangeCalendar({ from, to, month, onChange, onMonthChange, min, max, gri
 /** Control de fecha que abre el popover de selección de rango. */
 export default function DateRangePicker({ from, to, month, onChange, onMonthChange, min, max, label = 'Fecha', tone = 'white' }) {
   const [open, setOpen] = useState(false)
-  const [place, setPlace] = useState({ align: 'left', side: 'bottom' })
-  const ref = useRef(null)
-  const btnRef = useRef(null)
-  const popRef = useRef(null)
   const gridRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    const esc = (e) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc) }
-  }, [open])
-
-  // Mantiene el calendario dentro de la ventana: alinea según el espacio lateral
-  // y lo abre hacia arriba si no cabe debajo del control.
-  useIsoLayoutEffect(() => {
-    if (!open) return
-    const update = () => {
-      const b = btnRef.current?.getBoundingClientRect()
-      const p = popRef.current?.getBoundingClientRect()
-      if (!b || !p) return
-      const m = 12
-      const spaceRight = window.innerWidth - b.left
-      const spaceLeft = b.right
-      const spaceBelow = window.innerHeight - b.bottom
-      const spaceAbove = b.top
-      setPlace({
-        align: spaceRight >= p.width + m ? 'left' : spaceLeft >= p.width + m ? 'right' : 'center',
-        side: spaceBelow >= p.height + m ? 'bottom' : spaceAbove >= p.height + m ? 'top' : spaceBelow >= spaceAbove ? 'bottom' : 'top',
-      })
-    }
-    update()
-    window.addEventListener('resize', update)
-    window.addEventListener('scroll', update, true)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update, true)
-    }
-  }, [open])
 
   const text = rangeText(from, to)
   // Un solo día marcado (to aún en null) también cuenta como selección activa: de lo
   // contrario el botón ni se resalta ni ofrece la "X" para limpiarlo.
   const active = Boolean(from)
 
-  const align = place.align === 'right' ? 'right-0' : place.align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'
-  const side = place.side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
-
   return (
-    <div ref={ref} className="relative flex items-center">
-      <button
-        ref={btnRef}
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`inline-flex h-10 items-center gap-2 rounded-xl border text-sm transition-colors ${
-          active
-            ? 'border-primary-300 bg-primary-50 pl-3.5 pr-9 text-primary-700'
-            : tone === 'neutral'
-              ? 'border-neutral-200 bg-neutral-50 px-3.5 text-ink-700 hover:bg-neutral-100'
-              : 'border-neutral-200 bg-white px-3.5 text-ink-700 hover:border-neutral-300'
-        }`}
+    <div className="relative flex items-center">
+      {/* Popover mantiene el calendario dentro de la ventana (flip/shift) y por encima de todo. */}
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        role="dialog"
+        label="Seleccionar rango de días"
+        maxHeight={null}
+        className="w-[21rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-neutral-200 bg-white p-3 shadow-xl"
+        trigger={(props) => (
+          <button
+            type="button"
+            {...props}
+            className={`inline-flex h-10 items-center gap-2 rounded-xl border text-sm transition-colors ${
+              active
+                ? 'border-primary-300 bg-primary-50 pl-3.5 pr-9 text-primary-700'
+                : tone === 'neutral'
+                  ? 'border-neutral-200 bg-neutral-50 px-3.5 text-ink-700 hover:bg-neutral-100'
+                  : 'border-neutral-200 bg-white px-3.5 text-ink-700 hover:border-neutral-300'
+            }`}
+          >
+            <CalendarDays className="size-4 shrink-0" />
+            <span className="text-ink-500">{label}</span>
+            <span className="font-medium font-mono whitespace-nowrap">{text}</span>
+          </button>
+        )}
       >
-        <CalendarDays className="size-4 shrink-0" />
-        <span className="text-ink-500">{label}</span>
-        <span className="font-medium font-mono whitespace-nowrap">{text}</span>
-      </button>
+        <div ref={gridRef}>
+          <RangeCalendar
+            from={from}
+            to={to}
+            month={month}
+            onChange={onChange}
+            onMonthChange={onMonthChange}
+            min={min}
+            max={max}
+            gridRef={gridRef}
+          />
+        </div>
+      </Popover>
 
       {active && (
         <button
@@ -238,28 +214,6 @@ export default function DateRangePicker({ from, to, month, onChange, onMonthChan
         >
           <X className="size-4" />
         </button>
-      )}
-
-      {open && (
-        <div
-          ref={popRef}
-          role="dialog"
-          aria-label="Seleccionar rango de días"
-          className={`absolute z-40 w-[21rem] max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-1.5rem)] overflow-y-auto scroll-thin rounded-2xl border border-neutral-200 bg-white p-3 shadow-xl ${align} ${side}`}
-        >
-          <div ref={gridRef}>
-            <RangeCalendar
-              from={from}
-              to={to}
-              month={month}
-              onChange={onChange}
-              onMonthChange={onMonthChange}
-              min={min}
-              max={max}
-              gridRef={gridRef}
-            />
-          </div>
-        </div>
       )}
     </div>
   )

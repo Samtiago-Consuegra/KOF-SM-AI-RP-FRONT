@@ -60,9 +60,9 @@ export default function DetalleParadaModal({ open, onClose, parada, onEdit, onDe
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-modal flex items-center justify-center">
       <style>{`
-        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
         @media (prefers-reduced-motion: reduce) { .modal-anim { animation: none !important; } }
       `}</style>
       <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm" onClick={onClose} />

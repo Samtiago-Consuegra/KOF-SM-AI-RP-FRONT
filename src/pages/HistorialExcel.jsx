@@ -127,7 +127,7 @@ export default function HistorialExcel() {
       <style>{`
         @keyframes hx-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
         @keyframes hx-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
-        @keyframes hx-pop { 0% { transform: scale(.7); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes hx-pop { 0% { transform: scale(.7); opacity: 0; } 100% { transform: none; opacity: 1; } }
         @keyframes hx-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         .hx-page { animation: hx-up 320ms cubic-bezier(.2,.8,.2,1) both; }
         .hx-up { animation: hx-up 260ms ease-out both; }

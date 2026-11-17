@@ -150,7 +150,7 @@ export default function SubirArchivoModal({ open, onClose, onSuccess, onToast })
   const pct = avance.n ? Math.round((avance.i / avance.n) * 100) : 0
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" data-saliendo={saliendo || undefined}>
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-6" data-saliendo={saliendo || undefined}>
       <style>{`
         @keyframes sam-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
         @keyframes sam-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.97); } }

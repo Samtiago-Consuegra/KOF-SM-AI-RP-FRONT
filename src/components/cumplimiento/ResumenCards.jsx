@@ -11,12 +11,14 @@ export default function ResumenCards({ rango, maquina = 'todas', refreshKey = 0 
   useEffect(() => {
     let ignore = false
     setLoading(true)
-    getResumen(rango, maquina).then(res => {
-      if (!ignore) {
-        setData(res)
-        setLoading(false)
-      }
-    })
+    getResumen(rango, maquina)
+      .catch(() => ({ cumplimiento: 0, sinProgramadas: true, ejecutadas: 0, programadas: 0, pospuestas: 0, vencidas: 0 }))
+      .then(res => {
+        if (!ignore) {
+          setData(res)
+          setLoading(false)
+        }
+      })
     return () => { ignore = true }
   }, [rango, maquina, refreshKey])
   
@@ -38,8 +40,10 @@ export default function ResumenCards({ rango, maquina = 'todas', refreshKey = 0 
     <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
       <Card className="p-5 flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-ink-500">Cumplimiento del plan</p>
-        <p className="text-3xl font-bold tracking-tight text-primary-500 tabular-nums">{c1}%</p>
-        <p className="text-xs text-ink-500">Tareas ejecutadas sobre tareas programadas</p>
+        <p className="text-3xl font-bold tracking-tight text-primary-500 tabular-nums">{data.sinProgramadas ? '–' : `${c1}%`}</p>
+        <p className="text-xs text-ink-500">
+          {data.sinProgramadas ? 'No hay tareas programadas en el periodo' : 'Tareas ejecutadas sobre tareas programadas'}
+        </p>
       </Card>
       <Card className="p-5 flex flex-col gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-ink-500">Ejecutadas</p>

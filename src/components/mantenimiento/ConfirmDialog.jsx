@@ -57,11 +57,11 @@ export default function ConfirmDialog({
     : 'bg-ink-900 text-white hover:bg-primary-500')
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center">
+    <div className="fixed inset-0 z-modal flex items-center justify-center">
       <style>{`
-        @keyframes cd-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+        @keyframes cd-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
         @keyframes cd-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.96); } }
-        @keyframes cd-pop { from { transform: scale(0.6); } to { transform: scale(1); } }
+        @keyframes cd-pop { from { transform: scale(0.6); } to { transform: none; } }
         @keyframes cd-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
         @media (prefers-reduced-motion: reduce) { .cd-anim, .cd-icon { animation: none !important; } }
       `}</style>

@@ -12,6 +12,7 @@
     "optimize:video": "node scripts/optimize-video.mjs"
   },
   "dependencies": {
+    "@floating-ui/react-dom": "^2.1.9",
     "core-js": "^3.51.0",
     "exceljs": "^4.4.0",
     "jspdf": "^4.2.1",

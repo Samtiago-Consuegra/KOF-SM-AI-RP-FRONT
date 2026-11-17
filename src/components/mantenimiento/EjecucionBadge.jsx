@@ -8,7 +8,7 @@ export default function EjecucionBadge({ ejecucion, iconOnly = false, className 
   const Icon = valor === 'contratista' ? HardHat : Users
   const anim = (
     <style>{`
-      @keyframes ejec-badge-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+      @keyframes ejec-badge-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
       .ejec-badge { animation: ejec-badge-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
       @media (prefers-reduced-motion: reduce) { .ejec-badge { animation: none; } }
     `}</style>

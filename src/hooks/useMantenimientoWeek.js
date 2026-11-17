@@ -1,13 +1,21 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getWeekList } from '../utils/weeks.js'
 
 export function useMantenimientoWeek() {
-  const weeks = useMemo(() => getWeekList(52), [])
-  const [idx, setIdx] = useState(0)
+  // Incluye la semana siguiente: el Dashboard puede enlazar a una parada programada allí.
+  const weeks = useMemo(() => getWeekList(52, 1), [])
+  const actual = Math.max(0, weeks.findIndex((w) => w.isCurrent))
+  const [searchParams] = useSearchParams()
+  // ?semana=AAAA-MM-DD solo se lee al montar; si no está en la lista se abre la actual.
+  const [idx, setIdx] = useState(() => {
+    const i = weeks.findIndex((w) => w.start === searchParams.get('semana'))
+    return i >= 0 ? i : actual
+  })
   const week = weeks[idx]
   const goPrev = () => setIdx((i) => Math.min(i + 1, weeks.length - 1))
   const goNext = () => setIdx((i) => Math.max(i - 1, 0))
-  const goToday = () => setIdx(0)
+  const goToday = () => setIdx(actual)
   const [tick, setTick] = useState(0)
   useEffect(() => { setTick((t) => t + 1) }, [idx])
   return { week, weeks, idx, goPrev, goNext, goToday, tick }

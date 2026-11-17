@@ -104,3 +104,11 @@ export const cumplirYReprogramarApi = (id, datos) =>
   escribir(apiPost(`/paradas/${enc(id)}/cumplir-y-reprogramar`, datos))
 
 export const reprogramarParadaApi = (id, datos) => escribir(apiPost(`/paradas/${enc(id)}/reprogramar`, datos))
+
+// --- Cumplimiento (cálculos en app/cumplimiento_service.py) --------------------------------------
+
+/** params: { desde, hasta, maquina } → { programadas, ejecutadas, vencidas, pospuestas, cumplimiento_pct } */
+export const getCumplimientoResumen = (params) => apiGet('/cumplimiento/resumen', params)
+
+/** params: { desde, hasta, maquina, agrupar: 'maquina' | 'semana' } → { filas: [...] } */
+export const getCumplimientoGrafica = (params) => apiGet('/cumplimiento/grafica', params)

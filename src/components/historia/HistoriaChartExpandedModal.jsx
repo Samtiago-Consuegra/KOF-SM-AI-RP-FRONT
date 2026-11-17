@@ -43,7 +43,7 @@ export default function HistoriaChartExpandedModal({ open, onClose, titulo, cont
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div className="fixed inset-0 z-modal flex items-center justify-center">
       {/* Overlay con fade; el clic en él NO cierra el modal */}
       <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm animate-[modal-fade-in_250ms_ease-out]" aria-hidden="true" />
       <div

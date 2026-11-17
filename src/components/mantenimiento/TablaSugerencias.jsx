@@ -56,7 +56,7 @@ export default function TablaSugerencias({ plan = [], tareas = [], paradas = [],
   return (
     <div className="bg-white rounded-2xl border border-neutral-200">
       <style>{`
-        @keyframes tab-fade { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes tab-fade { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
         @media (prefers-reduced-motion: reduce) { .tab-anim { animation: none !important; } }
       `}</style>
       <div className="p-4 border-b border-neutral-200">

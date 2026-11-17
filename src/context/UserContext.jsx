@@ -47,19 +47,6 @@ export function UserProvider({ children }) {
     }
   }, [])
 
-  useEffect(
-    () => () => {
-      if (user?.photo) URL.revokeObjectURL(user.photo)
-    },
-    [user?.photo]
-  )
-
-  const updatePhoto = (file) => {
-    if (!file || !file.type.startsWith('image/')) return false
-    setUser((u) => (u ? { ...u, photo: URL.createObjectURL(file) } : u))
-    return true
-  }
-  const removePhoto = () => setUser((u) => (u ? { ...u, photo: null } : u))
   const logout = () => {
     clearAuthToken()
     setUser(null)
@@ -80,7 +67,7 @@ export function UserProvider({ children }) {
   const setAuthUser = (userData) => login(userData)
 
   return (
-    <UserContext.Provider value={{ user, loggedIn, loading, updatePhoto, removePhoto, logout, login, setAuthUser }}>
+    <UserContext.Provider value={{ user, loggedIn, loading, logout, login, setAuthUser }}>
       {children}
     </UserContext.Provider>
   )

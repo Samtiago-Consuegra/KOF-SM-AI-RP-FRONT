@@ -113,7 +113,7 @@ export default function ExportarHistoriaModal({ open, onClose, maquina, alcance,
     : null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm animate-[modal-fade-in_250ms_ease-out]" aria-hidden="true" />
       <div
         ref={modalRef}

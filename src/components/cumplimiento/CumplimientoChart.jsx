@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Maximize2 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts'
 import Card from '../ui/Card.jsx'
-import { getCumplimientoSemanal } from '../../services/cumplimientoService.js'
-import { MAQUINAS_CRITICAS } from '../../data/mock/cumplimiento.js'
+import { getCumplimientoSemanal, MAQUINAS_CRITICAS } from '../../services/cumplimientoService.js'
 
 const MAQUINA_COLORS = {
   Llenadora: 'var(--color-primary-500)',
@@ -21,17 +20,21 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
   useEffect(() => {
     let ignore = false
     setLoading(true)
-    getCumplimientoSemanal({ rango, maquina }).then((res) => {
-      if (!ignore) {
-        setData(res)
-        setLoading(false)
-      }
-    })
+    getCumplimientoSemanal({ rango, maquina })
+      .catch(() => [])
+      .then((res) => {
+        if (!ignore) {
+          setData(res)
+          setLoading(false)
+        }
+      })
     return () => { ignore = true }
   }, [rango, maquina, refreshKey])
 
   const maquinasToShow = maquina === 'todas' ? MAQUINAS_CRITICAS : [maquina]
+  const esMes = rango?.type === 'month'
   const chartData = []
+  const SIN_DETALLE = { ejecutadas: 0, programadas: 0, vencidas: 0, pospuestas: 0 }
 
   if (rango?.type === 'month') {
     const semanas = [...new Set(data.map((d) => d.semana))].sort()
@@ -40,7 +43,7 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
       maquinasToShow.forEach((m) => {
         const found = data.find((d) => d.semana === sem && d.maquina === m)
         row[m] = found ? found.cumplimiento : 0
-        row[`${m}_det`] = found || { ejecutadas: 0, programadas: 0 }
+        row[`${m}_det`] = found || SIN_DETALLE
       })
       chartData.push(row)
     })
@@ -49,8 +52,9 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
       const found = data.find((d) => d.maquina === m)
       chartData.push({
         name: m,
-        [m]: found ? found.cumplimiento : 0,
-        [`${m}_det`]: found || { ejecutadas: 0, programadas: 0 },
+        maquina: m,
+        cumplimiento: found ? found.cumplimiento : 0,
+        cumplimiento_det: found || SIN_DETALLE,
       })
     })
   }
@@ -61,12 +65,20 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
       <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-lg">
         <p className="mb-2 text-sm font-semibold text-ink-900">{label}</p>
         {payload.map((p, i) => {
-          const m = p.dataKey
-          const det = payload[0]?.payload?.[`${m}_det`] || {}
+          const m = p.payload?.maquina || p.dataKey
+          const det = p.payload?.[`${p.dataKey}_det`] || {}
           return (
-            <p key={i} className="text-xs text-ink-700">
-              <span style={{ color: MAQUINA_COLORS[m] }}>●</span> {m}: {p.value}% ({det.ejecutadas || 0} de {det.programadas || 0} tareas)
-            </p>
+            <div key={i} className="text-xs text-ink-700">
+              <p>
+                <span style={{ color: MAQUINA_COLORS[m] }}>●</span> {m}:{' '}
+                {det.programadas ? `${p.value}%` : 'sin tareas programadas'} ({det.ejecutadas || 0} de {det.programadas || 0} tareas)
+              </p>
+              {(det.vencidas > 0 || det.pospuestas > 0) && (
+                <p className="pl-3 text-ink-500">
+                  {det.vencidas || 0} vencidas · {det.pospuestas || 0} pospuestas
+                </p>
+              )}
+            </div>
           )
         })}
       </div>
@@ -84,11 +96,19 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
         <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--color-ink-500)' }} />
         <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--color-ink-500)' }} unit="%" />
         <Tooltip content={<CustomTooltip />} />
-        <Legend />
+        <Legend
+          payload={maquinasToShow.map((m) => ({ value: m, type: 'square', id: m, color: MAQUINA_COLORS[m] }))}
+        />
         <ReferenceLine y={META} stroke="var(--color-ink-400)" strokeDasharray="4 4" label={{ value: `Meta ${META} %`, position: 'right', fill: 'var(--color-ink-500)', fontSize: 12 }} />
-        {maquinasToShow.map((m) => (
-          <Bar key={m} dataKey={m} fill={MAQUINA_COLORS[m]} radius={[4, 4, 0, 0]} />
-        ))}
+        {esMes
+          ? maquinasToShow.map((m) => (
+            <Bar key={m} dataKey={m} fill={MAQUINA_COLORS[m]} radius={[4, 4, 0, 0]} />
+          ))
+          : (
+            <Bar dataKey="cumplimiento" radius={[4, 4, 0, 0]} maxBarSize={72}>
+              {chartData.map((row) => <Cell key={row.maquina} fill={MAQUINA_COLORS[row.maquina]} />)}
+            </Bar>
+          )}
       </BarChart>
     </ResponsiveContainer>
   )

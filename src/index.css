@@ -85,6 +85,38 @@
   --animate-spin-once: spin 0.8s linear 1;
 }
 
+/* ── Escala de capas (de abajo hacia arriba) ───────────────────────────── */
+:root {
+  --z-base: 0;
+  --z-sticky: 30;          /* encabezado y menú lateral */
+  --z-dropdown: 40;        /* menús y popovers de la página */
+  --z-modal: 50;           /* diálogos (los anidados se apilan por orden de DOM) */
+  --z-popover-modal: 60;   /* menús y tooltips abiertos sobre un modal */
+  --z-toast: 70;           /* avisos: siempre encima */
+}
+@utility z-base { z-index: var(--z-base); }
+@utility z-sticky { z-index: var(--z-sticky); }
+@utility z-dropdown { z-index: var(--z-dropdown); }
+@utility z-modal { z-index: var(--z-modal); }
+@utility z-popover-modal { z-index: var(--z-popover-modal); }
+@utility z-toast { z-index: var(--z-toast); }
+
+/* ── Popover (menús portalizados) ──────────────────────────────────────── */
+@keyframes kof-pop-in {
+  from { opacity: 0; transform: translateY(var(--kof-pop-y, -4px)) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes kof-pop-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(var(--kof-pop-y, -4px)) scale(0.98); }
+}
+.kof-pop[data-state="open"] { animation: kof-pop-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.kof-pop[data-state="closed"] { animation: kof-pop-out 120ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .kof-pop[data-state="open"] { animation: cum-fade 120ms ease-out both !important; }
+  .kof-pop[data-state="closed"] { animation: modal-fade-out 100ms ease-out both !important; }
+}
+
 html,
 body,
 #root {
@@ -154,12 +186,12 @@ body {
 /* Keyframes de Historia clínica (se respetan con prefers-reduced-motion) */
 @keyframes titulo-part-in {
   from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes maquina-enter-down {
   from { opacity: 0; transform: translateY(24px) scale(0.94); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes maquina-exit-left {
@@ -169,7 +201,7 @@ body {
 
 @keyframes maquina-enter-right {
   from { opacity: 0; transform: translateX(24px) scale(0.96); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes modal-fade-in {
@@ -184,7 +216,7 @@ body {
 
 @keyframes modal-scale-in {
   from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes modal-scale-out {
@@ -194,7 +226,7 @@ body {
 
 @keyframes fade-swap-in {
   from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes fade-in-select {
@@ -210,12 +242,12 @@ body {
 
 @keyframes cum-row-in-right {
   from { opacity: 0; transform: translateX(8px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes cum-row-in-left {
   from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ── Dashboard / Predicciones ───────────────────────────────────────────── */
@@ -248,7 +280,7 @@ body {
 /* ── Arranque en frío ───────────────────────────────────────────────────── */
 @keyframes kof-wake-in {
   from { opacity: 0; transform: translateY(14px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes kof-wake-out {
@@ -280,4 +312,30 @@ body {
 
 .kof-splash-bar {
   animation: kof-splash-bar 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* ── Pulso teal "calculando" (mismo gesto que el punto de sincronización) ── */
+@keyframes kof-ping {
+  0% { transform: scale(1); opacity: 0.55; }
+  80%, 100% { transform: scale(2.6); opacity: 0; }
+}
+.kof-pulse-teal .kof-pulse-ring { animation: kof-ping 1600ms cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+/* ── Parada resaltada al llegar desde el Dashboard (2 s) ─────────────────── */
+@keyframes kof-ring-in {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-tertiary-500) 0%, transparent); }
+  20% { box-shadow: 0 0 0 3px var(--color-tertiary-500); }
+  45% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--color-tertiary-500) 25%, transparent); }
+  65% { box-shadow: 0 0 0 3px var(--color-tertiary-500); }
+  85% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--color-tertiary-500) 25%, transparent); }
+  100% { box-shadow: 0 0 0 3px var(--color-tertiary-500); }
+}
+.parada-resaltada {
+  border-radius: 0.5rem;
+  animation: kof-ring-in 2000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kof-pulse-teal .kof-pulse-ring { animation: none !important; opacity: 0; }
+  .parada-resaltada { animation: none !important; box-shadow: 0 0 0 3px var(--color-tertiary-500); }
 }

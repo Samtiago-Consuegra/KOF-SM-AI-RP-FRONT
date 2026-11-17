@@ -15,7 +15,7 @@ function esHoy(iso) {
   return iso === local
 }
 
-export default function CalendarioSemanal({ paradas = [], week, onParadaClick, dir = 0 }) {
+export default function CalendarioSemanal({ paradas = [], week, onParadaClick, dir = 0, resaltadaId = null }) {
   if (!week) return null
   const dias = Array.from({ length: 7 }, (_, i) => {
     const iso = addDays(week.start, i)
@@ -44,7 +44,11 @@ export default function CalendarioSemanal({ paradas = [], week, onParadaClick, d
             </div>
             <div className="p-2 space-y-2">
               {dia.lista.length === 0 && <p className="text-xs text-ink-400 px-1">Sin paradas</p>}
-              {dia.lista.map((p) => <ParadaCard key={p.id} parada={p} onClick={onParadaClick} />)}
+              {dia.lista.map((p) => (
+                <div key={p.id} data-parada-id={p.id} className={resaltadaId != null && String(p.id) === String(resaltadaId) ? 'parada-resaltada' : undefined}>
+                  <ParadaCard parada={p} onClick={onParadaClick} />
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -58,7 +62,11 @@ export default function CalendarioSemanal({ paradas = [], week, onParadaClick, d
             </summary>
             <div className="px-3 pb-3 space-y-2">
               {dia.lista.length === 0 && <p className="text-xs text-ink-400">Sin paradas</p>}
-              {dia.lista.map((p) => <ParadaCard key={p.id} parada={p} onClick={onParadaClick} />)}
+              {dia.lista.map((p) => (
+                <div key={p.id} data-parada-id={p.id} className={resaltadaId != null && String(p.id) === String(resaltadaId) ? 'parada-resaltada' : undefined}>
+                  <ParadaCard parada={p} onClick={onParadaClick} />
+                </div>
+              ))}
             </div>
           </details>
         ))}

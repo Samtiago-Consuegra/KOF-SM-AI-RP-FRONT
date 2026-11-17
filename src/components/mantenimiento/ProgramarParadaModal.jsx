@@ -126,12 +126,12 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-modal flex items-center justify-center">
       <style>{`
-        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
-        @keyframes card-group-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes card-group-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
         .card-group-anim { animation: card-group-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
         @media (prefers-reduced-motion: reduce) { .modal-anim { animation: none !important; } .shake { animation: none !important; } .card-group-anim { animation: none !important; } }
         .shake { animation: shake 400ms ease-in-out; }

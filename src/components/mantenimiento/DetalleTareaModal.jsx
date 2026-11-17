@@ -101,9 +101,9 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-modal flex items-center justify-center">
       <style>{`
-        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes edit-reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
         .edit-reveal { animation: edit-reveal 220ms cubic-bezier(0.22,1,0.36,1) both; }
@@ -299,7 +299,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
       </div>
 
       {showDlg && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div className="fixed inset-0 z-modal flex items-center justify-center">
           <div className="modal-fade absolute inset-0 bg-ink-900/60" style={{ animation: 'fade-in 200ms ease-out' }} onClick={() => setShowDlg(false)} />
           <div className="modal-anim relative w-full max-w-[420px] bg-white rounded-2xl border border-neutral-200 shadow-xl mx-4" style={{ animation: 'modal-in 220ms cubic-bezier(0.22,1,0.36,1)' }}>
             <div className="p-4 flex items-start gap-3">

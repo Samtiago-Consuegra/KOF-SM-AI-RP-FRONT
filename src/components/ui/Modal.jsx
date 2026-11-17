@@ -58,7 +58,7 @@ export default function Modal({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-ink-900/60" onClick={onClose} aria-hidden="true" />
       <div
         ref={panelRef}

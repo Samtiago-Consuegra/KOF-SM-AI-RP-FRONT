@@ -32,7 +32,7 @@ export default function AsistenteChat({ open, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end md:items-start md:justify-end p-4">
+    <div className="fixed inset-0 z-modal flex items-end justify-end md:items-start md:justify-end p-4">
       <div className="absolute inset-0 md:hidden" onClick={onClose} />
       <div role="dialog" aria-modal="true" aria-labelledby="asistente-title" className="relative w-full h-full md:h-[520px] md:w-[380px] bg-white rounded-none md:rounded-2xl border border-neutral-200 shadow-xl flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-3 bg-ink-900 text-white">
