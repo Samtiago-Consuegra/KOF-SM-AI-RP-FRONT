@@ -64,10 +64,11 @@ const CAPTIONS = {
   promedio: (l) => <span>Promedio línea: {l}</span>,
 }
 
-export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, alcance }) {
-  if (loading || !indicadores || !parosPorMes) return <IndicadoresSkeleton />
+/** `avisoTarjetas` / `avisoGrafica`: estado vacío por cobertura que reemplaza esa parte. */
+export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, alcance, avisoTarjetas = null, avisoGrafica = null }) {
+  if (!avisoTarjetas && (loading || !indicadores || !parosPorMes)) return <IndicadoresSkeleton />
 
-  const { maquina, sistemaNombre, componenteNombre } = alcance ?? {}
+  const { maquina, sistemaNombre, componenteNombre, periodoLabel } = alcance ?? {}
   const tituloIndicadores = componenteNombre
     ? (sistemaNombre
         ? `Indicadores · ${sistemaNombre} · ${componenteNombre}`
@@ -76,7 +77,7 @@ export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, 
       ? `Indicadores · ${sistemaNombre}`
       : 'Indicadores de la máquina'
 
-  const cards = [
+  const cards = avisoTarjetas ? [] : [
     { label: 'Fallas', key: 'fallas', value: indicadores.fallas, higherBetter: false },
     { label: 'Minutos de paro', key: 'minutosParo', value: indicadores.minutosParo, suffix: ' min', higherBetter: false },
     { label: 'MTBF', key: 'mtbf', value: indicadores.mtbf, suffix: ' h', higherBetter: true },
@@ -90,8 +91,10 @@ export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, 
       <div className="p-6">
         <h2 className="text-lg font-semibold text-ink-900">{tituloIndicadores}</h2>
 
+        {avisoTarjetas}
+
         {/* 6 stat cards: 3×2 en desktop, 2 en tablet, 1 en móvil */}
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {!avisoTarjetas && <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((c) => (
             <IndicadorCard
               key={c.key}
@@ -105,15 +108,19 @@ export default function IndicadoresMaquina({ indicadores, parosPorMes, loading, 
               captionFn={(promedio) => CAPTIONS.promedio(promedio)}
             />
           ))}
-        </div>
+        </div>}
 
         {/* Gráfica de paros por mes, ampliable */}
-        <div className="mt-6">
-          <ParosPorMesChart
-            data={parosPorMes}
-            contexto={`${maquina}${sistemaNombre ? ` · ${sistemaNombre}` : ''}${componenteNombre ? ` · ${componenteNombre}` : ''} · Últimos 12 meses`}
-          />
-        </div>
+        {!avisoTarjetas && (
+          <div className="mt-6">
+            {avisoGrafica ?? (
+              <ParosPorMesChart
+                data={parosPorMes}
+                contexto={`${maquina}${sistemaNombre ? ` · ${sistemaNombre}` : ''}${componenteNombre ? ` · ${componenteNombre}` : ''} · ${periodoLabel || 'Últimos 12 meses'}`}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

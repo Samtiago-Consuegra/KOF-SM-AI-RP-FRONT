@@ -25,6 +25,12 @@ import {
 } from '../services/historiaClinicaService'
 import { useMotorEstado } from '../hooks/useMotorEstado.js'
 import { resolveTimeRange } from '../utils/period.js'
+import SinDatosPeriodo from '../components/ui/SinDatosPeriodo.jsx'
+import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial.jsx'
+import { useEvalCobertura } from '../hooks/useCobertura.js'
+import { tieneDatos } from '../utils/cobertura.js'
+
+const fueraDeDatos = (ev) => ev?.estado === 'sin_datos' && tieneDatos(ev)
 
 // La página abre sobre los últimos 12 meses CON DATOS (el reporte diario va atrasado
 // respecto a hoy). Los límites salen de GET /motor/historia/periodos.
@@ -189,6 +195,22 @@ export default function HistoriaClinica() {
     return () => { alive = false }
   }, [maquina, filtrosIndicadores, version])
 
+  // Cobertura: fallas (indicadores, gráfica y componentes) y eventos (línea de tiempo).
+  const covFallas = useEvalCobertura('fallas_historia', resolved?.start, resolved?.end)
+  const covEventos = useEvalCobertura('eventos_historia', resolved?.start, resolved?.end)
+  const fallasFuera = fueraDeDatos(covFallas)
+  const eventosFuera = fueraDeDatos(covEventos)
+  const irAlMesDe = (ev) => () => setRango({ ...range, period: 'mes', month: ev.ultimoDato.slice(0, 7) })
+
+  // La gráfica (últimos 12 meses del back) se recorta al periodo del filtro.
+  const parosPeriodo = useMemo(() => {
+    if (!parosPorMes || !resolved) return parosPorMes
+    const desde = resolved.start.slice(0, 7)
+    const hasta = resolved.end.slice(0, 7)
+    return parosPorMes.filter((m) => !m.key || (m.key.slice(0, 7) >= desde && m.key.slice(0, 7) <= hasta))
+  }, [parosPorMes, resolved])
+  const graficaSinDatos = !cargandoIndic && parosPeriodo && parosPeriodo.length === 0 && tieneDatos(covFallas)
+
   const handleExportar = useCallback(async ({ desde, hasta }) => {
     const resumen = await getResumenExportacion({
       maquina,
@@ -275,15 +297,25 @@ export default function HistoriaClinica() {
         </div>
       </Card>
 
+      {covFallas?.estado === 'parcial' && <AvisoCoberturaParcial fuente="fallas_historia" ev={covFallas} />}
+
       {/* Fila 1: Ficha (1/3) + Indicadores (2/3), misma altura */}
       <div className="grid gap-6 lg:grid-cols-3 items-stretch">
         <FichaEquipo ficha={ficha} maquina={maquina} loading={cargandoBase} />
         <div className="lg:col-span-2">
           <IndicadoresMaquina
             indicadores={indicadores}
-            parosPorMes={parosPorMes}
+            parosPorMes={parosPeriodo}
             loading={cargandoIndic}
             alcance={ctxTitulo}
+            avisoTarjetas={fallasFuera ? (
+              <SinDatosPeriodo key={resolved?.seedKey} fuente="fallas_historia" ev={covFallas} onIrAUltimo={irAlMesDe(covFallas)} />
+            ) : null}
+            avisoGrafica={graficaSinDatos ? (
+              <div className="rounded-xl border border-neutral-200 bg-[#F8F9FA]">
+                <SinDatosPeriodo compacto key={resolved?.seedKey} fuente="fallas_historia" ev={covFallas} onIrAUltimo={irAlMesDe(covFallas)} />
+              </div>
+            ) : null}
           />
         </div>
       </div>
@@ -291,6 +323,12 @@ export default function HistoriaClinica() {
       {/* Fila 2: Línea de tiempo (2/3) + Componentes (1/3) */}
       <div className="grid gap-6 lg:grid-cols-3 items-start">
         <div className="lg:col-span-2">
+          {covEventos?.estado === 'parcial' && <AvisoCoberturaParcial className="mb-3" fuente="eventos_historia" ev={covEventos} />}
+          {eventosFuera ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+              <SinDatosPeriodo key={resolved?.seedKey} fuente="eventos_historia" ev={covEventos} onIrAUltimo={irAlMesDe(covEventos)} />
+            </div>
+          ) : (
           <LineaTiempo
             key={version}
             maquina={maquina}
@@ -299,10 +337,17 @@ export default function HistoriaClinica() {
             periodoKey={resolved?.seedKey}
             loading={!resolved}
           />
+          )}
         </div>
         <div className="lg:col-span-1">
           {/* Lista del motor: los chips de máquina de la tarjeta no alteran el resto de la página. */}
-          <ComponentesMaquina key={version} maquina={maquina} />
+          {fallasFuera ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
+              <SinDatosPeriodo compacto key={resolved?.seedKey} fuente="fallas_historia" ev={covFallas} />
+            </div>
+          ) : (
+            <ComponentesMaquina key={version} maquina={maquina} />
+          )}
         </div>
       </div>
 

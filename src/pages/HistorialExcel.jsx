@@ -11,6 +11,10 @@ import { ARCHIVOS } from '../services/mantenimientoService'
 import { getHistorialArchivos } from '../api/motor'
 import { useToast } from '../context/ToastContext'
 import { toISODate } from '../utils/format'
+import SinDatosPeriodo from '../components/ui/SinDatosPeriodo'
+import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial'
+import { useEvalCobertura } from '../hooks/useCobertura'
+import { tieneDatos } from '../utils/cobertura'
 
 const POR_PAGINA = 8
 const REPORTE = 'reporte_diario'
@@ -105,6 +109,17 @@ export default function HistorialExcel() {
     return () => { cancelado = true }
   }, [tipo, desde, hasta, buscar, pagina, recarga])
 
+  const cobertura = useEvalCobertura('archivos', desde, hasta)
+  const sinPeriodo = cobertura?.estado === 'sin_datos' && tieneDatos(cobertura)
+  // Mes completo que contiene el último archivo cargado.
+  const irAUltimo = () => {
+    const [y, m] = cobertura.ultimoDato.split('-').map(Number)
+    const fin = toISODate(new Date(y, m, 0))
+    setRango({ from: `${cobertura.ultimoDato.slice(0, 7)}-01`, to: fin > hoy ? hoy : fin })
+    setMes(cobertura.ultimoDato.slice(0, 7))
+    setPagina(1)
+  }
+
   const elegirTipo = (clave) => {
     setPagina(1)
     setParams((p) => {
@@ -197,6 +212,8 @@ export default function HistorialExcel() {
         </div>
       </div>
 
+      {cobertura?.estado === 'parcial' && items.length > 0 && <AvisoCoberturaParcial fuente="archivos" ev={cobertura} />}
+
       <section className="rounded-2xl border border-neutral-200 bg-white" aria-busy={cargando}>
         {error ? (
           <div className="hx-up flex flex-col items-center gap-3 px-6 py-14 text-center" role="alert">
@@ -217,6 +234,8 @@ export default function HistorialExcel() {
             <Skeleton className="h-8 w-full" />
             {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-10 w-full" />)}
           </div>
+        ) : items.length === 0 && sinPeriodo ? (
+          <SinDatosPeriodo key={`${desde}-${hasta}`} fuente="archivos" ev={cobertura} onIrAUltimo={irAUltimo} />
         ) : items.length === 0 ? (
           <div className="hx-up flex flex-col items-center gap-3 px-6 py-16 text-center">
             <div className="hx-float grid size-14 place-items-center rounded-2xl bg-neutral-50 ring-1 ring-neutral-200">

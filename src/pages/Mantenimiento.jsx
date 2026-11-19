@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import PageHeader from '../components/ui/PageHeader.jsx'
 import { Upload, ChevronLeft, ChevronRight, CalendarPlus, FileDown, Bot, X, Loader2, Check } from 'lucide-react'
 import { useMantenimientoWeek, weekLegend } from '../hooks/useMantenimientoWeek.js'
-import { getAlertasSemana, getArchivosSemana, getParadasSemana, getPlanSugerido, getTareasSugeridas, leerCacheArchivos, leerCacheSemana } from '../services/mantenimientoService.js'
+import { getAlertasSemana, getArchivosSemana, getCalendarioSemana, getOrdenesSapSemana, getParadasSemana, getPlanSugerido, getTareasSugeridas, leerCacheArchivos, leerCacheSemana, semanaPasada } from '../services/mantenimientoService.js'
 import { useMotorEstado } from '../hooks/useMotorEstado.js'
 import SubirArchivoModal from '../components/mantenimiento/SubirArchivoModal.jsx'
 import AlertasCarousel from '../components/mantenimiento/AlertasCarousel.jsx'
@@ -13,13 +13,18 @@ import TablaSugerencias from '../components/mantenimiento/TablaSugerencias.jsx'
 import AsistenteChat from '../components/mantenimiento/AsistenteChat.jsx'
 import ProgramarParadaModal from '../components/mantenimiento/ProgramarParadaModal.jsx'
 import DetalleParadaModal from '../components/mantenimiento/DetalleParadaModal.jsx'
+import DetalleOrdenSapModal from '../components/mantenimiento/DetalleOrdenSapModal.jsx'
 import { semanaPeriodo } from '../components/mantenimiento/semanaPeriodo.js'
 import { cargarCatalogo } from '../data/catalogoMotor.js'
+import SinDatosPeriodo from '../components/ui/SinDatosPeriodo.jsx'
+import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial.jsx'
+import { useEvalCobertura } from '../hooks/useCobertura.js'
+import { avisaCoberturaParcial, tieneDatos } from '../utils/cobertura.js'
 
 /** Solo actualiza el estado si el resultado cambió (evita re-renders al refrescar en silencio). */
 const siCambia = (set) => (res) => set((prev) => (JSON.stringify(prev) === JSON.stringify(res) ? prev : res))
 
-/** Pide los datos de la semana; `vigente()` evita que una respuesta vieja pise el estado. */
+/** Pide los datos de la página (semana actual); `vigente()` evita que una respuesta vieja pise el estado. */
 function cargarSemana(start, sets, vigente = () => true) {
   const si = (set) => (res) => { if (vigente()) siCambia(set)(res) }
   return Promise.allSettled([
@@ -57,7 +62,12 @@ function Toast({ toast, onClose }) {
 }
 
 export default function Mantenimiento() {
-  const { week, weeks, idx, goPrev, goNext, goToday, tick } = useMantenimientoWeek()
+  // `week` = semana del calendario (flechas y "Hoy"); `weekActual` = semana de todo lo demás.
+  const { week, weekActual, weeks, idx, goPrev, goNext, goToday, goToDate } = useMantenimientoWeek()
+  const actualStart = weekActual?.start
+  const calStart = week?.start
+  const esActual = calStart === actualStart
+  const pasada = semanaPasada(calStart)
   // Dirección del último cambio de semana: -1 = hacia atrás (entra por la izquierda), 1 = hacia adelante.
   const idxPrevio = useRef(idx)
   const [dir, setDir] = useState(0)
@@ -65,18 +75,42 @@ export default function Mantenimiento() {
     if (idx !== idxPrevio.current) setDir(idx > idxPrevio.current ? -1 : 1)
     idxPrevio.current = idx
   }, [idx])
-  const [legend, setLegend] = useState('')
   const [subirOpen, setSubirOpen] = useState(false)
   const [progOpen, setProgOpen] = useState(false)
   const [editParada, setEditParada] = useState(null)
   const [detalleParada, setDetalleParada] = useState(null)
+  const [detalleOrden, setDetalleOrden] = useState(null)
   // Lo ya cargado se pinta al instante al volver a la vista; luego se refresca en silencio.
-  const [alertas, setAlertas] = useState(() => leerCacheSemana(week?.start)?.alertas ?? [])
+  const [alertas, setAlertas] = useState(() => leerCacheSemana(actualStart)?.alertas ?? [])
   const [archivos, setArchivos] = useState(() => leerCacheArchivos() ?? [])
-  const [paradas, setParadas] = useState(() => leerCacheSemana(week?.start)?.paradas ?? [])
-  const [plan, setPlan] = useState(() => leerCacheSemana(week?.start)?.plan ?? [])
-  const [tareas, setTareas] = useState(() => leerCacheSemana(week?.start)?.tareas ?? [])
+  const [paradas, setParadas] = useState(() => leerCacheSemana(actualStart)?.paradas ?? [])
+  const [plan, setPlan] = useState(() => leerCacheSemana(actualStart)?.plan ?? [])
+  const [tareas, setTareas] = useState(() => leerCacheSemana(actualStart)?.tareas ?? [])
+  // Calendario de otra semana (en la actual usa `paradas` de la página, sin otra petición).
+  const [calendario, setCalendario] = useState(null) // { start, data } de la última semana pedida
+  const [cargandoCal, setCargandoCal] = useState(false)
+  // Semana ya vista: sale de la caché en el mismo render (sin un cuadro con datos de otra semana).
+  const calData = esActual ? null : (calendario?.start === calStart ? calendario.data : leerCacheSemana(calStart)?.calendario ?? null)
+  const calParadas = esActual ? paradas : (calData?.paradas ?? [])
+  // Órdenes SAP de la semana actual (en otras semanas vienen en `calData`): una vez por semana, en caché.
+  const [sapActual, setSapActual] = useState(null) // { start, data }
+  const sapData = esActual ? (sapActual?.start === calStart ? sapActual.data : leerCacheSemana(calStart)?.ordenesSap ?? null) : calData
+  const calOrdenes = sapData?.ordenes ?? []
+  const calResumen = sapData?.resumen ?? null
   const [actualizando, setActualizando] = useState(false)
+  // Cobertura de semanas pasadas: órdenes de SAP y paradas registradas.
+  const covOrdenes = useEvalCobertura('ordenes_sap', pasada ? week?.start : null, week?.end)
+  const covParadas = useEvalCobertura('paradas', pasada ? week?.start : null, week?.end)
+  const covAmbas = useEvalCobertura(['ordenes_sap', 'paradas'], pasada ? week?.start : null, week?.end)
+  const fueraDeDatos = (ev) => ev?.estado === 'sin_datos' && tieneDatos(ev)
+  const calVacio = pasada && !cargandoCal && calData !== null && !calParadas.length && !calOrdenes.length
+  const calSinDatos = calVacio && fueraDeDatos(covOrdenes) && fueraDeDatos(covParadas)
+  const semanaConUltimo = covAmbas?.ultimoDato && weeks.some((w) => w.start <= covAmbas.ultimoDato && covAmbas.ultimoDato <= w.end)
+  // Aviso temporal por fuente cuando la semana cruza el último registro (nunca para paradas).
+  const avisosCal = calSinDatos || !pasada ? [] : [
+    ['ordenes_sap', covOrdenes],
+    ['paradas', covParadas],
+  ].filter(([f, ev]) => avisaCoberturaParcial(f, ev))
   const [chatOpen, setChatOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const [exportingSemana, setExportingSemana] = useState(false)
@@ -92,10 +126,10 @@ export default function Mantenimiento() {
   const [resaltada, setResaltada] = useState(null)
   useEffect(() => {
     if (!paradaEnlace) return undefined
-    const existe = paradas.some((p) => String(p.id) === paradaEnlace)
+    const existe = calParadas.some((p) => String(p.id) === paradaEnlace)
     if (!existe) {
       // Ya terminó la carga y no está en esta semana: solo se limpia el enlace.
-      if (!actualizando && paradas.length) setSearchParams({}, { replace: true })
+      if (!actualizando && !cargandoCal && calParadas.length) setSearchParams({}, { replace: true })
       return undefined
     }
     const el = [...document.querySelectorAll('[data-parada-id]')]
@@ -107,18 +141,18 @@ export default function Mantenimiento() {
     setResaltada(paradaEnlace)
     setSearchParams({}, { replace: true })
     return undefined
-  }, [paradaEnlace, paradas, actualizando, setSearchParams])
+  }, [paradaEnlace, calParadas, actualizando, cargandoCal, setSearchParams])
   useEffect(() => {
     if (!resaltada) return undefined
     const t = setTimeout(() => setResaltada(null), 2000)
     return () => clearTimeout(t)
   }, [resaltada])
 
-  useEffect(() => { setLegend(weekLegend(week)) }, [week?.start, tick]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Los datos salen del motor (backend) y dependen de la semana que se está viendo.
+  // Subtítulo, alertas, archivos, plan y tareas: siempre la semana actual (no siguen al calendario).
+  const legend = weekLegend(weekActual)
   useEffect(() => { cargarCatalogo(); getArchivosSemana().then(siCambia(setArchivos)) }, [])
   useEffect(() => {
-    const start = week?.start
+    const start = actualStart
     if (!start) return undefined
     // Si el usuario cambia de semana rápido, las respuestas viejas no pisan el estado.
     let cancelado = false
@@ -134,27 +168,44 @@ export default function Mantenimiento() {
     cargarSemana(start, { setParadas, setAlertas, setPlan, setTareas }, () => !cancelado)
       .then(() => { if (!cancelado) setActualizando(false) })
     return () => { cancelado = true }
-  }, [week?.start])
+  }, [actualStart])
+
+  // Calendario en otra semana: se pide una sola vez y queda en la caché por semana.
+  const [calVersion, setCalVersion] = useState(0)
+  useEffect(() => {
+    if (!calStart || esActual || leerCacheSemana(calStart)?.calendario) { setCargandoCal(false); return undefined }
+    let cancelado = false
+    setCargandoCal(true)
+    getCalendarioSemana(calStart)
+      .then((data) => { if (!cancelado) setCalendario({ start: calStart, data }) })
+      .finally(() => { if (!cancelado) setCargandoCal(false) })
+    return () => { cancelado = true }
+  }, [calStart, esActual, calVersion])
+  useEffect(() => {
+    if (!calStart || !esActual) return undefined
+    let cancelado = false
+    getOrdenesSapSemana(calStart).then((data) => { if (!cancelado) setSapActual({ start: calStart, data }) })
+    return () => { cancelado = true }
+  }, [calStart, esActual, calVersion])
 
   // Una corrida del motor terminó en ok: las cachés ya se limpiaron, se refresca en silencio.
-  const weekStartRef = useRef(week?.start)
-  useEffect(() => { weekStartRef.current = week?.start }, [week?.start])
   const refrescarSilencioso = useCallback(() => {
-    const start = weekStartRef.current
     getArchivosSemana().then(siCambia(setArchivos))
-    if (!start) return
+    if (!actualStart) return
     setActualizando(true)
-    cargarSemana(start, { setParadas, setAlertas, setPlan, setTareas }, () => weekStartRef.current === start)
-      .then(() => { if (weekStartRef.current === start) setActualizando(false) })
-  }, [])
+    cargarSemana(actualStart, { setParadas, setAlertas, setPlan, setTareas })
+      .then(() => setActualizando(false))
+    setCalVersion((v) => v + 1)
+  }, [actualStart])
   useMotorEstado(refrescarSilencioso)
 
   const refreshAll = async () => {
-    if (!week?.start) return
-    setParadas(await getParadasSemana({ startISO: week.start }))
-    setPlan(await getPlanSugerido(week.start))
-    setTareas(await getTareasSugeridas(week.start))
-    setAlertas(await getAlertasSemana(week.start))
+    if (!actualStart) return
+    setParadas(await getParadasSemana({ startISO: actualStart }))
+    setPlan(await getPlanSugerido(actualStart))
+    setTareas(await getTareasSugeridas(actualStart))
+    setAlertas(await getAlertasSemana(actualStart))
+    setCalVersion((v) => v + 1)
   }
   const onSubido = async () => { setArchivos(await getArchivosSemana()); setToast({ message: 'Archivo cargado' }); refreshAll() }
   const onParadaCreada = async () => { await refreshAll(); setToast({ message: 'Parada programada' }) }
@@ -162,7 +213,7 @@ export default function Mantenimiento() {
   const onParadaDeleted = async () => { await refreshAll(); setToast({ message: 'Parada eliminada' }) }
 
   const handleExportSemana = async () => {
-    if (!paradas || !paradas.length) {
+    if (!calParadas.length) {
       setToast({ message: 'No hay paradas para exportar en esta semana' })
       return
     }
@@ -172,7 +223,7 @@ export default function Mantenimiento() {
       // ExcelJS pesa ~1 MB: solo se descarga al pulsar exportar. El botón ya
       // muestra el spinner mientras dura el import y la generación.
       const { exportarParadasSemana } = await import('../utils/exportExcel.js')
-      const res = await exportarParadasSemana(paradas, week)
+      const res = await exportarParadasSemana(calParadas, week)
       if (res?.ok === false) {
         setToast({ message: 'No hay paradas para exportar en esta semana' })
       } else {
@@ -239,10 +290,10 @@ export default function Mantenimiento() {
                   <span className="overflow-hidden" aria-live="polite">
                     <span key={week?.start} className="sem-slide block whitespace-nowrap text-xs text-ink-500 tabular-nums" data-dir={dir}>{semanaPeriodo(week)}</span>
                   </span>
-                  <span role="status" aria-live="polite" className="sync-dot relative inline-flex size-2" data-on={actualizando} title={actualizando ? 'Actualizando…' : undefined}>
+                  <span role="status" aria-live="polite" className="sync-dot relative inline-flex size-2" data-on={actualizando || cargandoCal} title={actualizando || cargandoCal ? 'Actualizando…' : undefined}>
                     <span aria-hidden="true" className="sync-ring absolute inset-0 rounded-full bg-[#0D9488]" />
                     <span aria-hidden="true" className="relative inline-flex size-2 rounded-full bg-[#0D9488]" />
-                    <span className="sr-only">{actualizando ? 'Actualizando datos de la semana' : ''}</span>
+                    <span className="sr-only">{actualizando || cargandoCal ? 'Actualizando datos de la semana' : ''}</span>
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -257,10 +308,25 @@ export default function Mantenimiento() {
                     </span>
                     {exportingSemana ? 'Exportando…' : 'Exportar semana (Excel)'}
                   </button>
-                  <button onClick={() => { setEditParada(null); setProgOpen(true) }} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-3 text-sm text-white hover:bg-primary-600 active:scale-[0.97] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400"><CalendarPlus className="size-4" /> Programar parada</button>
+                  <button
+                    onClick={() => { if (pasada) return; setEditParada(null); setProgOpen(true) }}
+                    aria-disabled={pasada || undefined}
+                    title={pasada ? 'No se puede programar en semanas pasadas' : undefined}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary-500 px-3 text-sm text-white hover:bg-primary-600 active:scale-[0.97] transition-[background-color,opacity,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 aria-disabled:cursor-not-allowed aria-disabled:opacity-45 aria-disabled:hover:bg-primary-500 aria-disabled:active:scale-100"
+                  ><CalendarPlus className="size-4" /> Programar parada</button>
                 </div>
               </div>
-              <CalendarioSemanal paradas={paradas} week={week} onParadaClick={setDetalleParada} dir={dir} resaltadaId={resaltada} />
+              {avisosCal.map(([f, ev]) => <AvisoCoberturaParcial key={f} fuente={f} ev={ev} filtro={week?.start} />)}
+              {calSinDatos ? (
+                <SinDatosPeriodo
+                  key={week?.start}
+                  fuente="órdenes de SAP ni de paradas programadas"
+                  ev={covAmbas}
+                  onIrAUltimo={semanaConUltimo ? () => goToDate(covAmbas.ultimoDato) : undefined}
+                />
+              ) : (
+              <CalendarioSemanal paradas={calParadas} ordenes={calOrdenes} pasada={pasada} resumen={calResumen} week={week} onParadaClick={setDetalleParada} onOrdenClick={setDetalleOrden} dir={dir} resaltadaId={resaltada} />
+              )}
             </div>
           </div>
           <div>
@@ -284,7 +350,8 @@ export default function Mantenimiento() {
         editParada={editParada}
         onToast={setToast}
       />
-      <DetalleParadaModal open={!!detalleParada} onClose={() => setDetalleParada(null)} parada={detalleParada} onEdit={handleEditParada} onDeleted={onParadaDeleted} onToast={setToast} />
+      <DetalleParadaModal open={!!detalleParada} onClose={() => setDetalleParada(null)} parada={detalleParada} onEdit={handleEditParada} onDeleted={onParadaDeleted} onToast={setToast} soloLectura={pasada} />
+      <DetalleOrdenSapModal orden={detalleOrden} onClose={() => setDetalleOrden(null)} />
       <AsistenteChat open={chatOpen} onClose={() => setChatOpen(false)} />
       <Toast toast={toast} onClose={cerrarToast} />
     </div>

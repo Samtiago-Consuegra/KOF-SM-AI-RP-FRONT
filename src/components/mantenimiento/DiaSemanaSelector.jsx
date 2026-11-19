@@ -1,3 +1,5 @@
+import { esAntesDe } from '../ui/Calendar.jsx'
+
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 function sumarDias(iso, n) {
@@ -7,7 +9,7 @@ function sumarDias(iso, n) {
 }
 
 /** Los 7 días de la semana que empieza en `inicioISO` (lunes). `sugerida` marca el día propuesto con un punto. */
-export default function DiaSemanaSelector({ inicioISO, value, onChange, sugerida = null, className = '' }) {
+export default function DiaSemanaSelector({ inicioISO, value, onChange, sugerida = null, minDate = null, className = '' }) {
   if (!inicioISO) return null
   const dias = DIAS.map((nombre, i) => ({ nombre, iso: sumarDias(inicioISO, i) }))
   return (
@@ -15,21 +17,24 @@ export default function DiaSemanaSelector({ inicioISO, value, onChange, sugerida
       <style>{`
         @keyframes dia-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
         .dia-chip { animation: dia-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both; transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease; touch-action: manipulation; }
-        .dia-chip:active { transform: scale(0.96); }
+        .dia-chip:not(.dia-pasado):active { transform: scale(0.96); }
         @media (prefers-reduced-motion: reduce) { .dia-chip { animation: none; } .dia-chip:active { transform: none; } }
       `}</style>
       {dias.map((d, i) => {
         const active = value === d.iso
+        const pasado = esAntesDe(d.iso, minDate)
         return (
           <button
             key={d.iso}
             type="button"
             role="radio"
             aria-checked={active}
-            aria-label={`${d.nombre} ${d.iso}`}
-            onClick={() => onChange?.(d.iso)}
+            aria-disabled={pasado || undefined}
+            aria-label={`${d.nombre} ${d.iso}${pasado ? ' (día pasado)' : ''}`}
+            title={pasado ? 'No se pueden elegir días pasados' : undefined}
+            onClick={() => { if (!pasado) onChange?.(d.iso) }}
             style={{ animationDelay: `${i * 30}ms` }}
-            className={`dia-chip relative flex h-11 flex-col items-center justify-center rounded-lg border text-[11px] leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${active ? 'border-primary-500 bg-primary-500 font-semibold text-white shadow-sm' : 'border-neutral-200 bg-white text-ink-600 hover:bg-neutral-50'}`}
+            className={`dia-chip relative flex h-11 flex-col items-center justify-center rounded-lg border text-[11px] leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400 ${pasado ? 'dia-pasado cursor-not-allowed border-neutral-100 bg-neutral-50 text-ink-300 opacity-60' : active ? 'border-primary-500 bg-primary-500 font-semibold text-white shadow-sm' : 'border-neutral-200 bg-white text-ink-600 hover:bg-neutral-50'}`}
           >
             <span>{d.nombre}</span>
             <span className="text-sm tabular-nums">{Number(d.iso.slice(8, 10))}</span>

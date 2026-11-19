@@ -11,6 +11,7 @@ import EjecucionSelector from './EjecucionSelector.jsx'
 import EjecucionBadge from './EjecucionBadge.jsx'
 import DiaSemanaSelector from './DiaSemanaSelector.jsx'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
+import { esAntesDe, horaActual, hoyLocalISO } from '../ui/Calendar.jsx'
 
 function ReadValue({ children }) {
   return <p className="text-sm text-ink-900">{children}</p>
@@ -19,6 +20,11 @@ function ReadValue({ children }) {
 const condicionInicial = (item) => (item?.parada?.condicion === 'caliente' ? 'caliente' : 'frio')
 const ejecucionInicial = (item) => (item?.conContratista ? 'contratista' : 'propio')
 const fechaValida = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f || '') && !Number.isNaN(new Date(f + 'T00:00:00').getTime())
+// Si la fecha sugerida por el motor ya pasó, se parte de hoy.
+const fechaInicial = (item) => {
+  const f = item?.parada?.fecha || ''
+  return f && esAntesDe(f, hoyLocalISO()) ? hoyLocalISO() : f
+}
 
 export default function DetallePlanModal({ open, onClose, item, onDone, onToast }) {
   const [edit, setEdit] = useState(false)
@@ -30,7 +36,7 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
   const [tarea, setTarea] = useState(item?.tarea || '')
   const [condicion, setCondicion] = useState(condicionInicial(item))
   const [ejecucion, setEjecucion] = useState(ejecucionInicial(item))
-  const [fecha, setFecha] = useState(item?.parada?.fecha || '')
+  const [fecha, setFecha] = useState(() => fechaInicial(item))
   const [err, setErr] = useState('')
 
   useEffect(() => {
@@ -44,7 +50,7 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
     setTarea(item?.tarea || '')
     setCondicion(condicionInicial(item))
     setEjecucion(ejecucionInicial(item))
-    setFecha(item?.parada?.fecha || '')
+    setFecha(fechaInicial(item))
     setErr('')
   }, [open, item])
 
@@ -60,7 +66,9 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
   const enviar = async () => {
     setErr('')
     if (!fechaValida(fecha)) { setEdit(true); setErr('Elige un día válido para la parada'); return }
+    if (esAntesDe(fecha, hoyLocalISO())) { setEdit(true); setErr('No se puede programar en un día pasado'); return }
     if (!horaInicio || !horaFin) { setErr('Requiere hora de inicio y fin válidas'); return }
+    if (fecha === hoyLocalISO() && horaInicio < horaActual()) { setEdit(true); setErr('La hora de inicio no puede ser anterior a la hora actual'); return }
     if (horaFin <= horaInicio) { setErr('La hora de fin debe ser posterior a la hora de inicio'); return }
     await enviarPlanACalendario(item.id, { fecha, horaInicio, horaFin, condicion, ejecucion })
     onClose()
@@ -174,7 +182,7 @@ export default function DetallePlanModal({ open, onClose, item, onDone, onToast 
                   <div>
                     <label className={labelCls}>Día</label>
                     {edit ? (
-                      <DiaSemanaSelector key="dia-edit" className="edit-reveal" inicioISO={inicioSemanaVista()} value={fecha} onChange={setFecha} sugerida={item.parada?.fecha} />
+                      <DiaSemanaSelector key="dia-edit" className="edit-reveal" inicioISO={inicioSemanaVista()} value={fecha} onChange={setFecha} sugerida={item.parada?.fecha} minDate={hoyLocalISO()} />
                     ) : <ReadValue>{item.parada?.dia || 'Por definir'}</ReadValue>}
                   </div>
                   <div className="grid grid-cols-2 gap-2">

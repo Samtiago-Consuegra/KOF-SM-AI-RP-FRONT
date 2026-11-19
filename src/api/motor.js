@@ -4,7 +4,7 @@
  * de campos va en motorAdapter.js. Las respuestas 202 {"status":"calculando"} y
  * {"available": false} se devuelven tal cual (son estados normales, no errores).
  */
-import { apiDelete, apiGet, apiPost, apiPut, apiUpload, clearApiCache } from './client.js'
+import { apiDelete, apiGet, apiPost, apiPut, apiUpload, clearApiCache, invalidarCoberturaEvt } from './client.js'
 
 const enc = (v) => encodeURIComponent(String(v))
 
@@ -14,6 +14,18 @@ async function escribir(promesa) {
   clearApiCache()
   return res
 }
+
+/** Crear, editar o borrar una parada cambia la cobertura de "paradas". */
+async function escribirParada(promesa) {
+  const res = await escribir(promesa)
+  invalidarCoberturaEvt()
+  return res
+}
+
+// --- Cobertura -----------------------------------------------------------------------------------
+
+/** Primer y último día con datos por fuente. Se cachea en useCobertura (una sola petición en la app). */
+export const getCobertura = () => apiGet('/cobertura', undefined, { trackSlow: false })
 
 // --- Motor: estado y archivos --------------------------------------------------------------------
 
@@ -44,7 +56,10 @@ export const getPlanSemanal = (semana) => apiGet('/motor/plan-semanal', { semana
 export const descargarPlanSemanalExcel = (semana) =>
   apiGet('/motor/plan-semanal/excel', { semana }, { responseType: 'blob', trackSlow: false })
 
-export const getPlanRecomendado = () => apiGet('/motor/plan-recomendado')
+/** params: { desde, hasta, maquina } → { ordenes: [...], resumen: { total, por_tipo, por_estado } } (máx. 31 días) */
+export const getOrdenesSap = (params) => apiGet('/motor/ordenes-sap', params)
+
+export const getPlanRecomendado =() => apiGet('/motor/plan-recomendado')
 
 export const getHistoriaClinica = () => apiGet('/motor/historia-clinica')
 
@@ -89,11 +104,11 @@ export const listarParadas = (params) => apiGet('/paradas', params)
 
 export const obtenerParada = (id) => apiGet(`/paradas/${enc(id)}`)
 
-export const crearParada = (datos) => escribir(apiPost('/paradas', datos))
+export const crearParada = (datos) => escribirParada(apiPost('/paradas', datos))
 
-export const editarParada = (id, datos) => escribir(apiPut(`/paradas/${enc(id)}`, datos))
+export const editarParada = (id, datos) => escribirParada(apiPut(`/paradas/${enc(id)}`, datos))
 
-export const borrarParada = (id) => escribir(apiDelete(`/paradas/${enc(id)}`))
+export const borrarParada = (id) => escribirParada(apiDelete(`/paradas/${enc(id)}`))
 
 export const registrarSeguimientoParada = (id, datos) =>
   escribir(apiPost(`/paradas/${enc(id)}/seguimiento`, datos))

@@ -8,6 +8,10 @@ import PeriodFilter from '../components/ui/PeriodFilter.jsx'
 import StatCard from '../components/ui/StatCard.jsx'
 import Card from '../components/ui/Card.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
+import SinDatosPeriodo from '../components/ui/SinDatosPeriodo.jsx'
+import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial.jsx'
+import { useEvalCobertura } from '../hooks/useCobertura.js'
+import { tieneDatos } from '../utils/cobertura.js'
 import ParosPorEquipoChart from '../components/charts/ParosPorEquipoChart.jsx'
 import MinutosPorEquipoChart from '../components/charts/MinutosPorEquipoChart.jsx'
 import TopFallasChart from '../components/charts/TopFallasChart.jsx'
@@ -74,6 +78,11 @@ export default function Dashboard() {
   // evita la petición con el rango provisional y otra con el mes corregido.
   const summaryEnabled = periodsReady && !needsMonthFix
   const { ctx, sel, loading, error, refresh } = useEdaSummary(resolved, machineFilter, summaryEnabled)
+
+  // Cobertura de paros diarios para el periodo: aviso claro si el filtro cae fuera de los datos.
+  const cobertura = useEvalCobertura('reporte_diario', resolved.start, resolved.end)
+  const sinPeriodo = cobertura?.estado === 'sin_datos' && tieneDatos(cobertura)
+  const irAUltimo = () => setRange((r) => ({ ...r, period: 'mes', month: cobertura.ultimoDato.slice(0, 7) }))
 
   useEffect(() => {
     if (months.length === 0 || months.includes(range.month)) return
@@ -176,15 +185,25 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {!error && !sel && (loading || !summaryEnabled) && <DashboardSkeleton />}
+      {!error && !sinPeriodo && !sel && (loading || !summaryEnabled) && <DashboardSkeleton />}
 
-      {sel?.empty && (
+      {!error && sinPeriodo && (
+        <Card className="overflow-hidden">
+          <SinDatosPeriodo fuente="reporte_diario" ev={cobertura} onIrAUltimo={irAUltimo} />
+        </Card>
+      )}
+
+      {!error && !sinPeriodo && cobertura?.estado === 'parcial' && sel && !sel.empty && (
+        <AvisoCoberturaParcial fuente="reporte_diario" ev={cobertura} />
+      )}
+
+      {!sinPeriodo && sel?.empty && (
         <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle className="size-4 shrink-0" />{sel.message ?? 'Sin paros en el periodo seleccionado.'}
         </p>
       )}
 
-      {sel && !sel.empty && (
+      {!sinPeriodo && sel && !sel.empty && (
         <>
           {/* Indicadores — siguen el filtro de máquinas */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
@@ -248,7 +267,7 @@ export default function Dashboard() {
 
       {/* Contexto global + vista previa: se muestran aunque la selección esté vacía,
           porque las gráficas de contexto no dependen del filtro de máquinas. */}
-      {ctx && !ctx.empty && (
+      {!sinPeriodo && ctx && !ctx.empty && (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] items-start">
           <div className="grid gap-4 md:grid-cols-2">
             <ParosPorEquipoChart data={ctx.machines} periodLabel={resolved.label} />

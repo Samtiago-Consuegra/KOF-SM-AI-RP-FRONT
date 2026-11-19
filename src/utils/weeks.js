@@ -59,7 +59,7 @@ export function getWeekList(count = 12, futuras = 0) {
   return weeks
 }
 
-function getISOWeekNumber(date) {
+export function getISOWeekNumber(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   const dayNum = d.getUTCDay() || 7
   d.setUTCDate(d.getUTCDate() + 4 - dayNum)

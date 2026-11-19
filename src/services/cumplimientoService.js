@@ -102,15 +102,18 @@ export async function getResumen(rango, maquina = 'todas') {
 }
 
 // Vista semanal: una fila por máquina. Vista mensual: una fila por semana y máquina.
+const aPorTipo = (pt) => ({ Preventiva: pt?.Preventiva ?? 0, Correctiva: pt?.Correctiva ?? 0, Predictiva: pt?.Predictiva ?? 0 })
+
+/** Filas de la gráfica de paradas; el arreglo lleva además `porTipo` (tareas programadas por tipo). */
 export async function getCumplimientoSemanal({ rango, maquina = 'todas' }) {
-  if (!rango) return []
+  if (!rango) return Object.assign([], { porTipo: aPorTipo() })
   const r = await api.getCumplimientoGrafica({
     desde: rango.from,
     hasta: rango.to,
     maquina: soloMaquina(maquina),
     agrupar: rango.type === 'month' ? 'semana' : 'maquina',
   })
-  return (r.filas || []).map((f) => ({
+  const filas = (r.filas || []).map((f) => ({
     semana: f.etiqueta || null,
     maquina: f.maquina,
     cumplimiento: f.cumplimiento_pct == null ? 0 : Math.round(f.cumplimiento_pct),
@@ -119,6 +122,7 @@ export async function getCumplimientoSemanal({ rango, maquina = 'todas' }) {
     vencidas: f.vencidas ?? 0,
     pospuestas: f.pospuestas ?? 0,
   }))
+  return Object.assign(filas, { porTipo: aPorTipo(r.por_tipo) })
 }
 
 // ---------------------------------------------------------------------------------------------

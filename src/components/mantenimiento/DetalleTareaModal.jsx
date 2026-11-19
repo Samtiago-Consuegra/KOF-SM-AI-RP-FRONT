@@ -13,6 +13,7 @@ import MotivoSugerencia from './MotivoSugerencia.jsx'
 import { JERARQUIA } from '../../data/catalogoMotor.js'
 import { condicionDeParada, maquinasDeParada, textoMaquinas } from '../../utils/paradas.js'
 import { inputCls, labelCls, PRIOR_BADGE } from './modalFormStyles.js'
+import { esAntesDe, horaActual, hoyLocalISO } from '../ui/Calendar.jsx'
 
 function ReadValue({ children }) {
   return <p className="text-sm text-ink-900">{children || '—'}</p>
@@ -23,8 +24,10 @@ const fechaValida = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f || '') && !Number.isNaN(
 /** Valores iniciales de la personalización: los de la parada sugerida. */
 function personalizacionInicial(tarea) {
   const sug = tarea?.paradaSugerida || {}
+  // Si la fecha sugerida por el motor ya pasó, se parte de hoy.
+  const fecha = sug.fecha && esAntesDe(sug.fecha, hoyLocalISO()) ? hoyLocalISO() : (sug.fecha || '')
   return {
-    fecha: sug.fecha || '',
+    fecha,
     horaInicio: sug.horaInicio || '',
     horaFin: sug.horaFin || '',
     condicion: sug.condicion === 'caliente' ? 'caliente' : 'frio',
@@ -75,7 +78,9 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
     // Personalizando sin elegir una parada existente: se usan el día, horario, condición y ejecución elegidos.
     if (edit && !paradaId) {
       if (!fechaValida(pers.fecha)) { setErr('Elige un día válido para la parada'); return }
+      if (esAntesDe(pers.fecha, hoyLocalISO())) { setErr('No se puede programar en un día pasado'); return }
       if (!pers.horaInicio || !pers.horaFin) { setErr('Requiere hora de inicio y fin válidas'); return }
+      if (pers.fecha === hoyLocalISO() && pers.horaInicio < horaActual()) { setErr('La hora de inicio no puede ser anterior a la hora actual'); return }
       if (pers.horaFin <= pers.horaInicio) { setErr('La hora de fin debe ser posterior a la hora de inicio'); return }
       await enviarTareaAParada(tarea.id, { personalizada: pers })
       onClose(); onDone?.(); onToast?.('Tarea enviada a la parada'); return
@@ -208,7 +213,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
                   <div>
                     <label className={labelCls}>Día</label>
                     {edit ? (
-                      <DiaSemanaSelector className="edit-reveal" inicioISO={inicioSemanaVista()} value={pers.fecha} onChange={cambiar('fecha')} sugerida={sugerida?.fecha} />
+                      <DiaSemanaSelector className="edit-reveal" inicioISO={inicioSemanaVista()} value={pers.fecha} onChange={cambiar('fecha')} sugerida={sugerida?.fecha} minDate={hoyLocalISO()} />
                     ) : <ReadValue>{sugerida?.dia || paradaActual?.fecha || 'Por definir'}</ReadValue>}
                   </div>
                   {edit ? (
@@ -341,7 +346,7 @@ export default function DetalleTareaModal({ open, onClose, tarea, paradas = [], 
           const comp = (JERARQUIA[tarea.maquina] || []).flatMap(s => s.componentes || []).find(c => c.nombre === tarea.componente)
           return {
             titulo: tarea.tarea,
-            fecha: pers.fecha || new Date().toISOString().slice(0, 10),
+            fecha: pers.fecha || hoyLocalISO(),
             condicion: pers.condicion,
             ejecucion: pers.ejecucion,
             horaInicio: '08:00',

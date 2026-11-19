@@ -5,6 +5,7 @@
  * - Se detiene cuando ya no hay pendientes y se pausa con la pestaña oculta.
  */
 import { getMotorEstado } from '../api/motor.js'
+import { invalidarCoberturaEvt } from '../api/client.js'
 
 const ESPERA_MIN = 2000
 const ESPERA_MAX = 10000
@@ -28,7 +29,11 @@ function avisar(e) {
 function consultar() {
   if (!enCurso) {
     enCurso = getMotorEstado()
-      .then((e) => { estado = e; avisar(e); return e })
+      .then((e) => {
+        // Una corrida que estaba pendiente terminó en ok: la cobertura pudo cambiar.
+        if (pendiente(estado) && !pendiente(e) && e?.run?.status === 'ok') invalidarCoberturaEvt()
+        estado = e; avisar(e); return e
+      })
       // Sin respuesta no se sigue esperando (igual que antes): se avisa con null y se detiene.
       .catch(() => { avisar(null); return null })
       .finally(() => { enCurso = null })

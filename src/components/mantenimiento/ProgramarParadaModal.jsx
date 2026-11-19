@@ -9,6 +9,7 @@ import CondicionSelector from './CondicionSelector.jsx'
 import EjecucionSelector from './EjecucionSelector.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import { inputCls, labelCls } from './modalFormStyles.js'
+import { DatePicker, hoyLocalISO } from '../ui/Calendar.jsx'
 
 function buildPrecargaFromEdit(parada) {
   if (!parada) return null
@@ -39,7 +40,9 @@ function buildPrecargaFromEdit(parada) {
 export default function ProgramarParadaModal({ open, onClose, onCreated, editParada = null, precarga = null, onToast }) {
   const isEdit = !!editParada
   const initial = isEdit ? buildPrecargaFromEdit(editParada) : precarga
-  const hook = useProgramarParada({ initialPrecarga: initial })
+  // Al editar se permite conservar la fecha/hora que la parada ya tenía aunque hayan pasado.
+  const hook = useProgramarParada({ initialPrecarga: initial, original: isEdit ? { fecha: editParada.fecha, horaInicio: editParada.horaInicio } : null })
+  const hoy = hoyLocalISO()
   const [saving, setSaving] = useState(false)
   const [shake, setShake] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
@@ -166,7 +169,7 @@ export default function ProgramarParadaModal({ open, onClose, onCreated, editPar
 
                 <div>
                   <label className={labelCls} htmlFor="parada-fecha">Fecha</label>
-                  <input id="parada-fecha" type="date" value={hook.fecha} onChange={(e) => hook.setFecha(e.target.value)} className={inputCls} />
+                  <DatePicker id="parada-fecha" label="Fecha de la parada" value={hook.fecha} onChange={hook.setFecha} minDate={hoy} className={inputCls} />
                   {hook.errores.fecha && <p className="mt-1 text-xs text-primary-600">{hook.errores.fecha}</p>}
                 </div>
 

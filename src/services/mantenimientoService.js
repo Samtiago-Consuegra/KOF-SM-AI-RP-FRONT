@@ -321,6 +321,10 @@ function paradaPantalla(p, resPlan) {
 }
 
 let ultimasParadas = []
+// Toda parada ya mostrada (de cualquier semana del calendario), para editarla sin otra petición.
+const paradasPorId = new Map()
+const recordar = (lista) => { lista.forEach((p) => paradasPorId.set(p.id, p)); return lista }
+const paradaPrevia = (id) => paradasPorId.get(id) ?? ultimasParadas.find((p) => p.id === id)
 
 /** Lunes (AAAA-MM-DD) de la semana que se está viendo. No hace peticiones. */
 export function inicioSemanaVista() {
@@ -330,15 +334,78 @@ export function inicioSemanaVista() {
   return d.toISOString().slice(0, 10)
 }
 
-export async function getParadasSemana({ startISO }) {
+/**
+ * `fijarVista:false` (calendario en otra semana): no cambia la semana con la que se envían las
+ * decisiones ni las paradas que usan las sugerencias de la semana actual.
+ */
+export async function getParadasSemana({ startISO, fijarVista = true }) {
   if (!startISO) return []
-  semanaVista = semanaISO(startISO)
+  const semana = semanaISO(startISO)
+  if (fijarVista) semanaVista = semana
   const [lista, resPlan] = await Promise.all([
     api.listarParadas({ desde: startISO, hasta: sumarDias(startISO, 6) }).catch(() => []),
-    planSemanal(semanaVista),
+    planSemanal(semana),
   ])
-  ultimasParadas = (Array.isArray(lista) ? lista : []).map((p) => paradaPantalla(p, resPlan))
-  return guardar(semanaVista, 'paradas', ultimasParadas)
+  const paradas = recordar((Array.isArray(lista) ? lista : []).map((p) => paradaPantalla(p, resPlan)))
+  if (fijarVista) ultimasParadas = paradas
+  return guardar(semana, 'paradas', paradas)
+}
+
+/** ¿La semana (lunes AAAA-MM-DD) terminó antes de hoy? */
+export const semanaPasada = (startISO) => !!startISO && sumarDias(startISO, 6) < hoyISO()
+
+const ESTADOS_ORDEN = { 'Ejecutada': 'ejecutadas', 'No ejecutada': 'noEjecutadas', 'Abierta': 'abiertas' }
+
+export function ordenPantalla(o, i) {
+  return {
+    id: `${o.orden ?? 'OT'}-${i}`,
+    orden: o.orden ?? '',
+    maquina: o.maquina ?? '',
+    fecha: o.fecha_programada ?? null,
+    tipo: o.tipo_orden || 'otro',
+    estado: o.estado || 'Abierta',
+    estadoSap: o.estado_sap ?? '',
+    equipo: o.equipo ?? '',
+    plan: o.plan ?? '',
+    texto: o.texto ?? '',
+    costoPlan: o.costo_plan ?? null,
+    costoReal: o.costo_real ?? null,
+  }
+}
+
+/**
+ * Órdenes SAP de una semana ({ ordenes, resumen }). Se piden una sola vez y quedan en la caché
+ * por semana (`ordenesSap`); la semana actual, las pasadas y las futuras usan la misma.
+ */
+export async function getOrdenesSapSemana(startISO) {
+  if (!startISO) return null
+  const semana = semanaISO(startISO)
+  const cache = cacheSemanas.get(semana)?.ordenesSap
+  if (cache) return cache
+  const res = await api.getOrdenesSap({ desde: startISO, hasta: sumarDias(startISO, 6) }).catch(() => null)
+  const ordenes = (Array.isArray(res?.ordenes) ? res.ordenes : []).map(ordenPantalla)
+  const resumen = { total: ordenes.length, ejecutadas: 0, noEjecutadas: 0, abiertas: 0 }
+  ordenes.forEach((o) => { if (ESTADOS_ORDEN[o.estado]) resumen[ESTADOS_ORDEN[o.estado]] += 1 })
+  const data = { ordenes, resumen }
+  // Si la petición falló no se guarda: se reintenta la próxima vez.
+  return res ? guardar(semana, 'ordenesSap', data) : data
+}
+
+/**
+ * Lo que muestra el calendario en una semana, siempre con sus órdenes SAP.
+ * Pasada: paradas de la app (sin plan-semanal, el motor no calcula semanas pasadas).
+ * Actual o futura: paradas del plan.
+ */
+export async function getCalendarioSemana(startISO) {
+  if (!startISO) return null
+  const semana = semanaISO(startISO)
+  const pasada = semanaPasada(startISO)
+  const pedirParadas = pasada
+    ? api.listarParadas({ desde: startISO, hasta: sumarDias(startISO, 6) }).catch(() => [])
+        .then((lista) => recordar((Array.isArray(lista) ? lista : []).map((p) => paradaPantalla(p, null))))
+    : getParadasSemana({ startISO, fijarVista: false })
+  const [paradas, sap] = await Promise.all([pedirParadas, getOrdenesSapSemana(startISO)])
+  return guardar(semana, 'calendario', { pasada, paradas, ordenes: sap.ordenes, resumen: sap.resumen })
 }
 
 const esIdCatalogo = (v) => /^[A-Z]{3}-\d{3}$/.test(String(v || ''))
@@ -348,7 +415,7 @@ function paradaAlBackend(datos, idParada = null) {
   const detalle = datos.tareasDetalle || (datos.tareas || []).map((d) => ({ descripcion: d, tipo: 'Preventiva', maquina: datos.maquina }))
   // Las tareas que vinieron del motor (enviadas a esta parada) siguen siendo decisiones, no tareas
   // escritas a mano: no se guardan otra vez como manuales.
-  const previa = idParada ? ultimasParadas.find((p) => p.id === idParada) : null
+  const previa = idParada ? paradaPrevia(idParada) : null
   const delMotor = new Set((previa?.tareasDetalle || []).filter((t) => t.idMotor).map((t) => t.descripcion))
   const manuales = detalle.filter((t) => t.descripcion && !delMotor.has(t.descripcion))
   let maquinas = [...new Set([...(datos.maquinas || []), ...manuales.map((t) => t.maquina)].filter(Boolean))]
@@ -397,7 +464,7 @@ export async function programarParada(parada) {
 
 export async function actualizarParada(id, datos) {
   // Si al editar el usuario quitó una tarea que había enviado desde las sugerencias, se deshace esa decisión.
-  const previa = ultimasParadas.find((p) => p.id === id)
+  const previa = paradaPrevia(id)
   const quedan = new Set((datos.tareasDetalle || []).map((t) => t.descripcion))
   const quitadas = (previa?.tareasDetalle || []).filter((t) => t.idMotor && !quedan.has(t.descripcion))
   await api.editarParada(id, paradaAlBackend(datos, id))

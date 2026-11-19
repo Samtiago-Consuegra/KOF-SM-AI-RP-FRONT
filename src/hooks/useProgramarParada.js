@@ -1,9 +1,30 @@
 import { useState } from 'react'
 import { JERARQUIA } from '../data/catalogoMotor.js'
+import { esAntesDe, horaActual, hoyLocalISO } from '../components/ui/Calendar.jsx'
 
-export function useProgramarParada({ initialPrecarga = null } = {}) {
+/**
+ * Errores de día pasado y de hora anterior a la actual. `original` (al editar) permite conservar
+ * la fecha y hora que la parada ya tenía.
+ */
+export function erroresFechaHora(fecha, horaInicio, original = null) {
+  const err = {}
+  const hoy = hoyLocalISO()
+  const mismaFecha = original && fecha === original.fecha
+  if (esAntesDe(fecha, hoy) && !mismaFecha) err.fecha = 'No se puede programar en un día pasado'
+  if (fecha === hoy && horaInicio && horaInicio < horaActual() && !(mismaFecha && horaInicio === original.horaInicio)) {
+    err.horaInicio = 'No puede ser anterior a la hora actual'
+  }
+  return err
+}
+
+const fechaInicial = (precarga, original) => {
+  const f = precarga?.fecha || hoyLocalISO()
+  return esAntesDe(f, hoyLocalISO()) && !original ? hoyLocalISO() : f
+}
+
+export function useProgramarParada({ initialPrecarga = null, original = null } = {}) {
   const [titulo, setTitulo] = useState(initialPrecarga?.titulo || '')
-  const [fecha, setFecha] = useState(initialPrecarga?.fecha || new Date().toISOString().slice(0, 10))
+  const [fecha, setFecha] = useState(() => fechaInicial(initialPrecarga, original))
   const [horaInicio, setHoraInicio] = useState(initialPrecarga?.horaInicio || '06:00')
   const [horaFin, setHoraFin] = useState(initialPrecarga?.horaFin || '10:00')
   const [condicion, setCondicion] = useState(initialPrecarga?.condicion || 'frio')
@@ -69,6 +90,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     if (!horaInicio) newErr.horaInicio = 'Requerido'
     if (!horaFin) newErr.horaFin = 'Requerido'
     if (horaInicio && horaFin && horaFin <= horaInicio) newErr.horaFin = 'Debe ser posterior a la hora de inicio'
+    Object.assign(newErr, { ...erroresFechaHora(fecha, horaInicio, original), ...newErr })
     if (!condicion) newErr.condicion = 'Requerido'
     if (!maquina) newErr.maquina = 'Requerido'
     if (!sistema) newErr.sistema = 'Requerido'
@@ -184,6 +206,7 @@ export function useProgramarParada({ initialPrecarga = null } = {}) {
     if (!horaInicio) newErr.horaInicio = 'Requerido'
     if (!horaFin) newErr.horaFin = 'Requerido'
     if (horaInicio && horaFin && horaFin <= horaInicio) newErr.horaFin = 'Debe ser posterior a la hora de inicio'
+    Object.assign(newErr, { ...erroresFechaHora(fecha, horaInicio, original), ...newErr })
     if (!condicion) newErr.condicion = 'Requerido'
     setErrores(newErr)
     if (Object.keys(newErr).length > 0) return false

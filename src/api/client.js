@@ -243,6 +243,9 @@ async function request(
   }
 }
 
+/** Avisa a useCobertura que GET /cobertura debe volver a pedirse (evento: evita importar hooks aquí). */
+export const invalidarCoberturaEvt = () => emitWindowEvent('kof:cobertura-invalida')
+
 export const apiGet = (path, params, opts) => request(path, { ...opts, params })
 
 export const apiPost = (path, body, opts) => request(path, { ...opts, body })
@@ -255,6 +258,7 @@ export async function apiUpload(path, formData, opts) {
   const result = await request(path, { ...opts, body: formData, trackSlow: false })
   // El Excel puede traer máquinas, periodos y predicciones nuevas.
   clearApiCache()
+  invalidarCoberturaEvt()
   return result
 }
 

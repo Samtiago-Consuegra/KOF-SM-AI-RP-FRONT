@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CalendarClock } from 'lucide-react'
 import { getWeekList, getMonthList, getRangeForWeek, getRangeForMonth, siguienteDiaHabil, formatFechaHabil } from '../utils/weeks'
 import WeekSelect from '../components/cumplimiento/WeekSelect'
@@ -14,6 +15,23 @@ import ConfirmDialog from '../components/mantenimiento/ConfirmDialog'
 import { reprogramarParada } from '../services/cumplimientoService'
 import { useToast } from '../context/ToastContext'
 import PageHeader from '../components/ui/PageHeader'
+import VistaSelector from '../components/cumplimiento/VistaSelector'
+import VistaOrdenesSap from '../components/cumplimiento/VistaOrdenesSap'
+import { VISTAS, vistaDesdeParams } from '../services/ordenesSapCumplimiento'
+import SinDatosPeriodo from '../components/ui/SinDatosPeriodo'
+import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial'
+import { useEvalCobertura } from '../hooks/useCobertura'
+import { tieneDatos } from '../utils/cobertura'
+
+/** Aviso de cobertura de una vista: null (todo normal), 'sin' (reemplaza secciones) o 'parcial' (aviso temporal). */
+const modoCobertura = (ev) => (ev?.estado === 'sin_datos' && tieneDatos(ev) ? 'sin' : ev?.estado === 'parcial' ? 'parcial' : null)
+
+/** Mientras la vista está oculta devuelve el último valor que vio: no pide datos hasta mostrarse. */
+function useValorSiActiva(valor, activa) {
+  const ref = useRef(valor)
+  if (activa) ref.current = valor
+  return ref.current
+}
 
 const MAQUINA_OPTIONS = [
   { value: 'todas', label: 'Todas las máquinas', hint: '4 críticas' },
@@ -25,6 +43,18 @@ const MAQUINA_OPTIONS = [
 
 export default function Cumplimiento() {
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const vista = vistaDesdeParams(searchParams)
+  const esSap = vista === VISTAS.SAP
+  const montadas = useRef(new Set())
+  montadas.current.add(vista) // cada vista se monta la primera vez que se muestra y luego se conserva
+
+  const cambiarVista = (nueva) => {
+    const params = new URLSearchParams(searchParams)
+    if (nueva === VISTAS.SAP) params.set('vista', VISTAS.SAP)
+    else params.delete('vista')
+    setSearchParams(params, { replace: true })
+  }
   const weeks = useMemo(() => getWeekList(12), [])
   const months = useMemo(() => getMonthList(12), [])
 
@@ -47,6 +77,21 @@ export default function Cumplimiento() {
     () => (monthKey && selectedMonth ? getRangeForMonth(selectedMonth) : getRangeForWeek(selectedWeek)),
     [monthKey, selectedMonth, selectedWeek],
   )
+  const rangoParadas = useValorSiActiva(rangoActivo, !esSap)
+  const maquinaParadas = useValorSiActiva(maquina, !esSap)
+  const rangoSap = useValorSiActiva(rangoActivo, esSap)
+  const maquinaSap = useValorSiActiva(maquina, esSap)
+
+  const covParadas = useEvalCobertura('paradas', rangoParadas.from, rangoParadas.to)
+  const covSap = useEvalCobertura('ordenes_sap', rangoSap.from, rangoSap.to)
+  const modoParadas = modoCobertura(covParadas)
+  const modoSap = modoCobertura(covSap)
+  // Mes de la lista (últimos 12) que contiene el último dato; sin él no se ofrece el botón.
+  const irAlMesDe = (ev) => {
+    const mes = ev?.ultimoDato && months.find((m) => m.start <= ev.ultimoDato && ev.ultimoDato <= m.end)
+    return mes ? () => handleMonthChange(mes.key) : undefined
+  }
+
   const rangoLabel = monthKey && selectedMonth ? selectedMonth.rangeLabel : selectedWeek.rangeLabel
 
   const handleMonthChange = (key) => {
@@ -106,6 +151,7 @@ export default function Cumplimiento() {
           title="Cumplimiento del plan"
           subtitle="Seguimiento de las tareas aceptadas en la pestaña de Mantenimiento"
         />
+        <VistaSelector value={vista} onChange={cambiarVista} />
         <div
           className="flex flex-wrap items-start gap-2.5"
           role="group"
@@ -146,21 +192,46 @@ export default function Cumplimiento() {
         </div>
       </div>
 
-      <ResumenCards rango={rangoActivo} maquina={maquina} refreshKey={refreshKey} />
+      {montadas.current.has(VISTAS.PARADAS) && (
+        <div hidden={esSap} className="kof-fade-up space-y-6">
+          {modoParadas === 'sin' ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white">
+              <SinDatosPeriodo key={rangoParadas.from} fuente="paradas" ev={covParadas} onIrAUltimo={irAlMesDe(covParadas)} />
+            </div>
+          ) : (
+            <>
+              <ResumenCards rango={rangoParadas} maquina={maquinaParadas} refreshKey={refreshKey} />
 
-      <CumplimientoChart
-        rango={rangoActivo}
-        maquina={maquina}
-        refreshKey={refreshKey}
-        onExpand={() => setShowChartModal(true)}
-      />
+              <CumplimientoChart
+                rango={rangoParadas}
+                maquina={maquinaParadas}
+                refreshKey={refreshKey}
+                onExpand={() => setShowChartModal(true)}
+              />
+            </>
+          )}
 
-      <ParadasTable
-        refreshKey={refreshKey}
-        onRegistrar={handleRegistrar}
-        onReprogramar={handleReprogramar}
-        onVerDetalle={handleVerDetalle}
-      />
+          <ParadasTable
+            refreshKey={refreshKey}
+            onRegistrar={handleRegistrar}
+            onReprogramar={handleReprogramar}
+            onVerDetalle={handleVerDetalle}
+          />
+        </div>
+      )}
+
+      {montadas.current.has(VISTAS.SAP) && (
+        <div hidden={!esSap} className="kof-fade-up space-y-4">
+          <AvisoCoberturaParcial fuente="ordenes_sap" ev={covSap} filtro={`${rangoSap.from}|${maquinaSap}`} activo={esSap} />
+          {modoSap === 'sin' ? (
+            <div className="rounded-2xl border border-neutral-200 bg-white">
+              <SinDatosPeriodo key={rangoSap.from} fuente="ordenes_sap" ev={covSap} onIrAUltimo={irAlMesDe(covSap)} />
+            </div>
+          ) : (
+            <VistaOrdenesSap desde={rangoSap.from} hasta={rangoSap.to} maquina={maquinaSap} tipo={rangoSap.type} etiqueta={rangoSap.label} />
+          )}
+        </div>
+      )}
 
       <ChartExpandedModal
         open={showChartModal}

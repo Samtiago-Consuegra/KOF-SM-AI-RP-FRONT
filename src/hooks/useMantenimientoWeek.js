@@ -16,9 +16,12 @@ export function useMantenimientoWeek() {
   const goPrev = () => setIdx((i) => Math.min(i + 1, weeks.length - 1))
   const goNext = () => setIdx((i) => Math.max(i - 1, 0))
   const goToday = () => setIdx(actual)
+  /** Lleva el calendario a la semana que contiene la fecha ISO (si está en la lista). */
+  const goToDate = (iso) => { const i = weeks.findIndex((w) => w.start <= iso && iso <= w.end); if (i >= 0) setIdx(i) }
   const [tick, setTick] = useState(0)
   useEffect(() => { setTick((t) => t + 1) }, [idx])
-  return { week, weeks, idx, goPrev, goNext, goToday, tick }
+  // `week` es la semana del calendario; `weekActual` (la de hoy) la usa el resto de la página.
+  return { week, weekActual: weeks[actual], weeks, idx, goPrev, goNext, goToday, goToDate, tick }
 }
 
 export function weekLegend(week) {
