@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PageHeader from '../components/ui/PageHeader.jsx'
-import { Upload, ChevronLeft, ChevronRight, CalendarPlus, FileDown, Bot, X, Loader2, Check } from 'lucide-react'
+import { Upload, ChevronLeft, ChevronRight, CalendarPlus, FileDown, X, Loader2, Check } from 'lucide-react'
 import { useMantenimientoWeek, weekLegend } from '../hooks/useMantenimientoWeek.js'
 import { getAlertasSemana, getArchivosSemana, getCalendarioSemana, getOrdenesSapSemana, getParadasSemana, getPlanSugerido, getTareasSugeridas, leerCacheArchivos, leerCacheSemana, semanaPasada } from '../services/mantenimientoService.js'
 import { useMotorEstado } from '../hooks/useMotorEstado.js'
@@ -10,7 +10,6 @@ import AlertasCarousel from '../components/mantenimiento/AlertasCarousel.jsx'
 import CalendarioSemanal from '../components/mantenimiento/CalendarioSemanal.jsx'
 import EstadoArchivos from '../components/mantenimiento/EstadoArchivos.jsx'
 import TablaSugerencias from '../components/mantenimiento/TablaSugerencias.jsx'
-import AsistenteChat from '../components/mantenimiento/AsistenteChat.jsx'
 import ProgramarParadaModal from '../components/mantenimiento/ProgramarParadaModal.jsx'
 import DetalleParadaModal from '../components/mantenimiento/DetalleParadaModal.jsx'
 import DetalleOrdenSapModal from '../components/mantenimiento/DetalleOrdenSapModal.jsx'
@@ -20,6 +19,7 @@ import SinDatosPeriodo from '../components/ui/SinDatosPeriodo.jsx'
 import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial.jsx'
 import { useEvalCobertura } from '../hooks/useCobertura.js'
 import { avisaCoberturaParcial, tieneDatos } from '../utils/cobertura.js'
+import { usePublicarAsistente } from '../context/AsistenteContext.jsx'
 
 /** Solo actualiza el estado si el resultado cambió (evita re-renders al refrescar en silencio). */
 const siCambia = (set) => (res) => set((prev) => (JSON.stringify(prev) === JSON.stringify(res) ? prev : res))
@@ -111,7 +111,6 @@ export default function Mantenimiento() {
     ['ordenes_sap', covOrdenes],
     ['paradas', covParadas],
   ].filter(([f, ev]) => avisaCoberturaParcial(f, ev))
-  const [chatOpen, setChatOpen] = useState(false)
   const [toast, setToast] = useState(null)
   const [exportingSemana, setExportingSemana] = useState(false)
   const [exportSemanaOk, setExportSemanaOk] = useState(false)
@@ -147,6 +146,13 @@ export default function Mantenimiento() {
     const t = setTimeout(() => setResaltada(null), 2000)
     return () => clearTimeout(t)
   }, [resaltada])
+
+  // El asistente responde con lo que ya está en pantalla (sin volver a pedirlo).
+  usePublicarAsistente('mantenimiento', {
+    semanaInicio: actualStart, calInicio: calStart, alertas, plan, tareas, archivos,
+    paradas: esActual || calData ? calParadas : undefined,
+    ordenesSap: sapData ?? undefined,
+  })
 
   // Subtítulo, alertas, archivos, plan y tareas: siempre la semana actual (no siguen al calendario).
   const legend = weekLegend(weekActual)
@@ -249,8 +255,6 @@ export default function Mantenimiento() {
     <div className="space-y-6 max-w-[1500px] mx-auto">
       <style>{`
         @keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-        @keyframes fab-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: none; } }
-        @keyframes pulse-soft { 0%,100% { box-shadow: 0 0 0 0 rgba(244,0,0,0.25); } 50% { box-shadow: 0 0 0 8px rgba(244,0,0,0.05); } }
         @keyframes cd-pop { from { transform: scale(0.6); } to { transform: none; } }
         @keyframes btn-pop { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: none; opacity: 1; } }
         .m-anim > * { animation: fade-up 350ms ease-out both; }
@@ -266,7 +270,7 @@ export default function Mantenimiento() {
         .sync-dot[data-on="false"] { opacity: 0; transform: scale(0.4); }
         .sync-dot[data-on="true"] { opacity: 1; transform: scale(1); }
         .sync-dot[data-on="true"] .sync-ring { animation: sync-ping 1600ms cubic-bezier(0, 0, 0.2, 1) infinite; }
-        @media (prefers-reduced-motion: reduce) { .m-anim > *, .toast-anim, .fab-pulse, .btn-pop { animation: none !important; } .export-icon { transition: none !important; } .sync-dot { transition: opacity 160ms ease; transform: none !important; } .sync-dot .sync-ring { animation: none !important; } }
+        @media (prefers-reduced-motion: reduce) { .m-anim > *, .toast-anim, .btn-pop { animation: none !important; } .export-icon { transition: none !important; } .sync-dot { transition: opacity 160ms ease; transform: none !important; } .sync-dot .sync-ring { animation: none !important; } }
       `}</style>
 
       <PageHeader title="Mantenimiento" subtitle={legend}>
@@ -337,9 +341,6 @@ export default function Mantenimiento() {
         <TablaSugerencias plan={plan} tareas={tareas} paradas={paradas} onRefresh={refreshAll} onToast={setToast} />
       </div>
 
-      <button aria-label="Abrir asistente de mantenimiento" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)} className="fab-pulse fixed bottom-6 right-6 z-sticky h-12 w-12 rounded-full bg-primary-500 text-white grid place-items-center shadow-lg hover:bg-primary-600 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-400" style={{ animation: 'fab-in 350ms ease-out both, pulse-soft 2400ms ease-in-out infinite' }}>
-        <Bot className="size-5" />
-      </button>
 
       <SubirArchivoModal open={subirOpen} onClose={() => setSubirOpen(false)} onSuccess={onSubido} onToast={setToast} />
       <ProgramarParadaModal
@@ -352,7 +353,6 @@ export default function Mantenimiento() {
       />
       <DetalleParadaModal open={!!detalleParada} onClose={() => setDetalleParada(null)} parada={detalleParada} onEdit={handleEditParada} onDeleted={onParadaDeleted} onToast={setToast} soloLectura={pasada} />
       <DetalleOrdenSapModal orden={detalleOrden} onClose={() => setDetalleOrden(null)} />
-      <AsistenteChat open={chatOpen} onClose={() => setChatOpen(false)} />
       <Toast toast={toast} onClose={cerrarToast} />
     </div>
   )

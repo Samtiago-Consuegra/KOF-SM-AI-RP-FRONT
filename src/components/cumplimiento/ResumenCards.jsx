@@ -3,6 +3,7 @@ import Card from '../ui/Card.jsx'
 import Skeleton from '../ui/Skeleton.jsx'
 import useCountUp from '../../hooks/useCountUp.js'
 import { getResumen } from '../../services/cumplimientoService.js'
+import { usePublicarAsistente } from '../../context/AsistenteContext.jsx'
 
 export default function ResumenCards({ rango, maquina = 'todas', refreshKey = 0 }) {
   const [data, setData] = useState(null)
@@ -22,6 +23,9 @@ export default function ResumenCards({ rango, maquina = 'todas', refreshKey = 0 
     return () => { ignore = true }
   }, [rango, maquina, refreshKey])
   
+  // Clave del filtro: el asistente solo usa este resumen si coincide con el filtro de la página.
+  usePublicarAsistente('cumplimiento', { resumen: loading ? undefined : data, resumenClave: `${rango?.from}|${rango?.to}|${maquina}` })
+
   const c1 = useCountUp(data?.cumplimiento || 0)
   const c2a = useCountUp(data?.ejecutadas || 0)
   const c2b = useCountUp(data?.programadas || 0)

@@ -66,17 +66,3 @@ export const TAREAS_SUGERIDAS_MOCK = [
   { id: 'ts-7', prioridad: 'Media', tarea: 'Ajuste tensores film', componente: 'Rodillo de film', componenteId: 'rodillo-film', maquina: 'Envolvedora', sistema: 'Sistema de film', paradaSugerida: { existe: true, id: null, dia: 'Mar 3 nov', maquina: 'Envolvedora' } },
   { id: 'ts-8', prioridad: 'Baja', tarea: 'Revisión pernos alivio', componente: 'Perno block sniff/alivio', componenteId: 'pernos-alivio', maquina: 'Llenadora', sistema: 'Sistema de llenado', paradaSugerida: { existe: false, id: null, dia: 'Vie 6 nov', maquina: 'Llenadora' } },
 ]
-
-export const ASISTENTE_SUGERENCIAS = [
-  '¿Qué paradas hay esta semana?',
-  '¿Qué componente falla más?',
-  '¿Qué tareas están pendientes?',
-]
-
-export function respuestaAsistenteSimulada(mensaje) {
-  const m = (mensaje || '').toLowerCase()
-  if (m.includes('parada')) return 'Esta semana hay 5 paradas programadas: Llenadora, Empacadora, Paletizadora y Envolvedora con distintas tareas.'
-  if (m.includes('componente') && m.includes('falla')) return 'Componentes con mayor frecuencia: Cabezal sellador (Empacadora), Válvula de llenado (Llenadora) y Gripper (Paletizadora).'
-  if (m.includes('tarea')) return 'Hay 8 tareas sugeridas esta semana. Varias tienen parada sugerida inexistente y requieren crearla.'
-  return 'Te ayudo con paradas, tareas, plan sugerido y confiabilidad de las 4 máquinas críticas.'
-}

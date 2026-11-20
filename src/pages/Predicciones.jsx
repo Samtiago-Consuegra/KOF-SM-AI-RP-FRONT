@@ -19,6 +19,7 @@ import { usePeriods } from '../hooks/usePeriods.js'
 import { usePredictions } from '../hooks/usePredictions.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { staggerStyle } from '../utils/motion.js'
+import { usePublicarAsistente } from '../context/AsistenteContext.jsx'
 
 const PAGE_SIZE = 5
 
@@ -116,6 +117,8 @@ export default function Predicciones() {
         return { ...p, trendDisplay: trend, trendPctCurrent: pct, ipmCurrent: last ? last.v : p.ipm }
       })
   }, [all, machineFilter, risk, windowStart, windowEnd])
+
+  usePublicarAsistente('predicciones', { filas: data && !loading ? rows : undefined, meta: data?.meta ?? null })
 
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const visible = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)

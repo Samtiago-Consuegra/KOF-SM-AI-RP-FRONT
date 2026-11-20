@@ -339,3 +339,60 @@ body {
   .kof-pulse-teal .kof-pulse-ring { animation: none !important; opacity: 0; }
   .parada-resaltada { animation: none !important; box-shadow: 0 0 0 3px var(--color-tertiary-500); }
 }
+
+/* ── Asistente virtual (botón flotante + panel anclado encima) ───────────── */
+.asis-fab {
+  right: 1.5rem;
+  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  touch-action: manipulation;
+  animation: asis-fab-in 350ms cubic-bezier(0.22, 1, 0.36, 1) both, asis-pulse 2400ms ease-in-out 600ms infinite;
+}
+.asis-fab[aria-expanded="true"] { animation: none; }
+@keyframes asis-fab-in { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: none; } }
+@keyframes asis-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(244 0 0 / 0.25); }
+  50% { box-shadow: 0 0 0 8px rgb(244 0 0 / 0.05); }
+}
+/* Ícono del botón: el bot y la X se cruzan al abrir/cerrar. */
+.asis-fab-icon { transition: opacity 160ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1); }
+.asis-fab-icon[data-on="false"] { opacity: 0; transform: rotate(-45deg) scale(0.6); }
+
+.asis-panel {
+  right: 1rem;
+  /* 48 px del botón + 12 px de espacio sobre él */
+  bottom: calc(1.5rem + 48px + 12px + env(safe-area-inset-bottom));
+  width: min(380px, calc(100vw - 2rem));
+  max-height: min(600px, calc(100dvh - 140px));
+  transform-origin: bottom right;
+}
+@media (min-width: 640px) { .asis-panel { right: 1.5rem; } }
+.asis-panel[data-state="open"] { animation: asis-open 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.asis-panel[data-state="closed"] { animation: asis-close 150ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+@keyframes asis-open { from { opacity: 0; transform: translateY(8px) scale(0.92); } to { opacity: 1; transform: none; } }
+@keyframes asis-close { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(0.92); } }
+
+.asis-msg { animation: asis-msg-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes asis-msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.asis-dot { animation: asis-dot 1s ease-in-out infinite; }
+.asis-dot:nth-child(2) { animation-delay: 150ms; }
+.asis-dot:nth-child(3) { animation-delay: 300ms; }
+@keyframes asis-dot { 0%, 80%, 100% { opacity: 0.3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+
+/* Acordeón: grid 0fr → 1fr anima a la altura natural sin medir con JS. */
+.asis-acc { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 220ms cubic-bezier(0.25, 1, 0.5, 1); }
+.asis-acc[data-open="true"] { grid-template-rows: 1fr; }
+.asis-acc > div { overflow: hidden; }
+.asis-chev { transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1); }
+[aria-expanded="true"] > .asis-chev { transform: rotate(180deg); }
+
+/* Indicador del chip activo que se desliza entre "Sobre esta vista" y "¿Qué significa…?". */
+.asis-tab-ind { transition: transform 220ms cubic-bezier(0.25, 1, 0.5, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .asis-fab, .asis-dot { animation: none !important; }
+  .asis-panel[data-state="open"] { animation: cum-fade 120ms ease-out both !important; }
+  .asis-panel[data-state="closed"] { animation: modal-fade-out 100ms ease-out both !important; }
+  .asis-msg { animation: cum-fade 120ms ease-out both !important; }
+  .asis-acc, .asis-chev, .asis-tab-ind, .asis-fab-icon { transition: none !important; }
+}

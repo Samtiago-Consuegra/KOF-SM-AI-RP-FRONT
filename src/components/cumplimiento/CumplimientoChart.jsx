@@ -4,6 +4,7 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import Card from '../ui/Card.jsx'
 import { getCumplimientoSemanal, MAQUINAS_CRITICAS } from '../../services/cumplimientoService.js'
 import ChipsTipo from './ChipsTipo.jsx'
+import { usePublicarAsistente } from '../../context/AsistenteContext.jsx'
 
 const MAQUINA_COLORS = {
   Llenadora: 'var(--color-primary-500)',
@@ -43,6 +44,7 @@ export default function CumplimientoChart({ rango, maquina = 'todas', onExpand, 
   }, [esSap, desde, hasta, tipoRango, maquina, refreshKey])
 
   const data = esSap ? sap.filas || [] : datosParadas
+  usePublicarAsistente('cumplimiento', esSap ? {} : { filas: cargandoParadas ? undefined : datosParadas, filasClave: `${desde}|${hasta}|${maquina}` })
   const loading = esSap ? sap.loading : cargandoParadas
   const maquinasToShow = maquina === 'todas' ? MAQUINAS_CRITICAS : [maquina]
   const esMes = rango?.type === 'month'

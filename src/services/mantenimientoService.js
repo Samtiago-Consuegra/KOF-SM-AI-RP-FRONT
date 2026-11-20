@@ -594,16 +594,5 @@ export async function crearParadaYAsignar({ tareaId, parada }) {
   return { ok: true, parada: { id: creada?.id_parada, ...parada } }
 }
 
-// ---------------------------------------------------------------------------------------------
-// Asistente (todavía de ejemplo: la Fase 25 del motor no está construida)
-// ---------------------------------------------------------------------------------------------
-export async function getAsistenteSugerencias() { return ['¿Qué paradas hay esta semana?', '¿Qué componente falla más?', '¿Qué tareas están pendientes?'] }
-export async function enviarMensajeAsistente(historial) {
-  await esperar(700)
-  const { respuestaAsistenteSimulada } = await import('../data/mock/mantenimiento.js')
-  const ultimo = Array.isArray(historial) ? historial[historial.length - 1] : { text: '' }
-  return { respuesta: respuestaAsistenteSimulada(ultimo?.text || '') }
-}
-
 // Compatibilidad con utilidades de main que usan las máquinas de una parada.
 export { maquinasDeParada }

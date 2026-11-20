@@ -29,6 +29,7 @@ import SinDatosPeriodo from '../components/ui/SinDatosPeriodo.jsx'
 import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial.jsx'
 import { useEvalCobertura } from '../hooks/useCobertura.js'
 import { tieneDatos } from '../utils/cobertura.js'
+import { usePublicarAsistente } from '../context/AsistenteContext.jsx'
 
 const fueraDeDatos = (ev) => ev?.estado === 'sin_datos' && tieneDatos(ev)
 
@@ -194,6 +195,12 @@ export default function HistoriaClinica() {
       })
     return () => { alive = false }
   }, [maquina, filtrosIndicadores, version])
+
+  usePublicarAsistente('historiaClinica', {
+    maquina, filtros: filtrosIndicadores ?? {},
+    ficha: cargandoBase ? undefined : ficha ?? undefined,
+    indicadores: cargandoIndic ? undefined : indicadores ?? undefined,
+  })
 
   // Cobertura: fallas (indicadores, gráfica y componentes) y eventos (línea de tiempo).
   const covFallas = useEvalCobertura('fallas_historia', resolved?.start, resolved?.end)

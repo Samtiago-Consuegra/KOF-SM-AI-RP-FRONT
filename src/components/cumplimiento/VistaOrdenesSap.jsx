@@ -9,6 +9,7 @@ import DetalleOrdenSapModal from '../mantenimiento/DetalleOrdenSapModal.jsx'
 import {
   cumplimientoSapPorMaquina, desgloseTipos, getOrdenesSapPeriodo, resumenOrdenes,
 } from '../../services/ordenesSapCumplimiento.js'
+import { usePublicarAsistente } from '../../context/AsistenteContext.jsx'
 
 /** Vista "Órdenes de SAP": misma distribución que la de paradas, con /motor/ordenes-sap. */
 export default function VistaOrdenesSap({ desde, hasta, maquina, tipo = 'week', etiqueta }) {
@@ -26,6 +27,7 @@ export default function VistaOrdenesSap({ desde, hasta, maquina, tipo = 'week', 
   }, [desde, hasta, maquina])
 
   const loading = !res
+  usePublicarAsistente('cumplimiento', { ordenesSap: res ?? undefined, ordenesSapClave: `${desde}|${hasta}|${maquina}` })
   const ordenes = res?.ordenes
   const esMes = tipo === 'month'
   // La gráfica se calcula con las órdenes ya cargadas: por máquina (semana) o por semana y máquina (mes).

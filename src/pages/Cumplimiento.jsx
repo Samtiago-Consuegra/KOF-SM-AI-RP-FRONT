@@ -22,6 +22,7 @@ import SinDatosPeriodo from '../components/ui/SinDatosPeriodo'
 import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial'
 import { useEvalCobertura } from '../hooks/useCobertura'
 import { tieneDatos } from '../utils/cobertura'
+import { usePublicarAsistente } from '../context/AsistenteContext.jsx'
 
 /** Aviso de cobertura de una vista: null (todo normal), 'sin' (reemplaza secciones) o 'parcial' (aviso temporal). */
 const modoCobertura = (ev) => (ev?.estado === 'sin_datos' && tieneDatos(ev) ? 'sin' : ev?.estado === 'parcial' ? 'parcial' : null)
@@ -93,6 +94,7 @@ export default function Cumplimiento() {
   }
 
   const rangoLabel = monthKey && selectedMonth ? selectedMonth.rangeLabel : selectedWeek.rangeLabel
+  usePublicarAsistente('cumplimiento', { rango: rangoActivo, rangoLabel, maquina, vista })
 
   const handleMonthChange = (key) => {
     setMonthKey(key)

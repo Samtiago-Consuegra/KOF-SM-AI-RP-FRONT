@@ -32,6 +32,7 @@ import { fmtDateShort, fmtNumber, fromISODate, startOfDay } from '../utils/forma
 import { defaultTimeRange, resolveTimeRange } from '../utils/period.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { staggerStyle } from '../utils/motion.js'
+import { usePublicarAsistente } from '../context/AsistenteContext.jsx'
 
 /** Plazo de la probabilidad: 7 -> "7 días"; un texto del motor se muestra tal cual. */
 const textoHorizonte = (h) => (h == null || h === '' ? null : typeof h === 'number' ? `${h} día${h === 1 ? '' : 's'}` : String(h))
@@ -105,6 +106,7 @@ export default function Dashboard() {
 
   const options = useMemo(() => machineOptions(machines), [machines])
   const kpis = sel?.kpis
+  usePublicarAsistente('dashboard', { periodo: resolved.label, sel: loading ? undefined : sel, ctx: loading ? undefined : ctx, preview: preview.loading ? undefined : preview })
   const trend = useMemo(() => (sel ? trendSeries(sel) : []), [sel])
 
   const onRefresh = () => {

@@ -15,6 +15,7 @@ import SinDatosPeriodo from '../components/ui/SinDatosPeriodo'
 import AvisoCoberturaParcial from '../components/ui/AvisoCoberturaParcial'
 import { useEvalCobertura } from '../hooks/useCobertura'
 import { tieneDatos } from '../utils/cobertura'
+import { usePublicarAsistente } from '../context/AsistenteContext.jsx'
 
 const POR_PAGINA = 8
 const REPORTE = 'reporte_diario'
@@ -131,6 +132,10 @@ export default function HistorialExcel() {
   }
 
   const conteo = data?.conteo_por_tipo || null
+  usePublicarAsistente('historialExcel', {
+    items: cargando ? undefined : data?.items, conteo, total: data?.total ?? 0,
+    sinFiltros: !tipo && !desde && !buscar && pagina === 1,
+  })
   const totalTodos = conteo ? Object.values(conteo).reduce((s, n) => s + (Number(n) || 0), 0) : null
   const items = data?.items || []
   const total = data?.total ?? 0
