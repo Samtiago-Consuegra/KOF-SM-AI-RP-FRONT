@@ -375,7 +375,14 @@ export default function Predicciones() {
                   </th>
                   <th scope="col" className="px-5 py-3">Tendencia</th>
                   <th scope="col" className="px-5 py-3">Últimos datos</th>
-                  <th scope="col" className="px-5 py-3">IPM</th>
+                  <th scope="col" className="px-5 py-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      IPM
+                      <InfoTip title="¿Qué es el IPM?">
+                        Índice de Prioridad de Mantenimiento: valor que clasifica la prioridad de atención del equipo con base en la frecuencia de fallas, el tiempo de paro, la recurrencia y la criticidad. A mayor valor, mayor prioridad
+                      </InfoTip>
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody key={`${machineFilter}|${risk}|${rangeKey}|${page}`} className="divide-y divide-neutral-100">
